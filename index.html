@@ -3,12 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobile Barcode Scanner</title>
-     <script src="https://cdnjs.cloudflare.com/ajax/libs/zxing-js/0.19.2/zxing.min.js" 
-            integrity="sha512-6mWcWb8bxKxZJ0yFOm/SuirXixRm4sEGy3GXAbfWEN9pNBQ65sQX8s1SqkcJi9oxZXzC+joEYy2kgG+nFmKlg==" 
-            crossorigin="anonymous" 
-            referrerpolicy="no-referrer"></script>
-   
+    <title>Barcode Scanner</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -20,8 +16,6 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #f0f0f0;
             min-height: 100vh;
-            display: flex;
-            flex-direction: column;
         }
 
         .header {
@@ -33,29 +27,20 @@
         }
 
         .container {
-            flex: 1;
-            padding: 1rem;
             max-width: 600px;
             margin: 0 auto;
-            width: 100%;
+            padding: 1rem;
         }
 
-        .scanner-container {
+        #interactive.viewport {
             position: relative;
             width: 100%;
-            aspect-ratio: 4/3;
-            background: #000;
+            height: 300px;
             border-radius: 12px;
             overflow: hidden;
-            margin: 1rem 0;
-            display: none;
         }
 
-        .scanner-container.active {
-            display: block;
-        }
-
-        #video {
+        #interactive.viewport video, #interactive.viewport canvas {
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -70,14 +55,11 @@
             height: 40%;
             border: 2px solid #2563eb;
             border-radius: 8px;
+            pointer-events: none;
         }
 
-        .result {
-            background: white;
-            padding: 1rem;
-            border-radius: 12px;
+        .controls {
             margin: 1rem 0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .btn {
@@ -96,44 +78,30 @@
             background: #93c5fd;
         }
 
-        #result {
-            word-break: break-all;
-        }
-
-        .permission-container {
+        .result-container {
             background: white;
-            padding: 1.5rem;
+            padding: 1rem;
             border-radius: 12px;
-            margin: 1rem 0;
-            text-align: center;
+            margin-top: 1rem;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        .permission-container p {
-            margin-bottom: 1rem;
+        .result-container h2 {
+            margin-bottom: 0.5rem;
+            color: #1f2937;
+        }
+
+        #result {
+            word-break: break-all;
             color: #4b5563;
-            line-height: 1.5;
         }
 
-        .permission-denied {
-            color: #dc2626;
-            margin-top: 1rem;
-            display: none;
-        }
-
-        .permission-denied.show {
-            display: block;
-        } 
-          .error-message {
-            background: #fee2e2;
-            color: #dc2626;
+        .permission-message {
+            background: white;
             padding: 1rem;
-            border-radius: 8px;
+            border-radius: 12px;
             margin: 1rem 0;
-            display: none;
-        }
-        .error-message.show {
-            display: block;
+            text-align: center;
         }
     </style>
 </head>
@@ -141,138 +109,101 @@
     <div class="header">
         <h1>Barcode Scanner</h1>
     </div>
-    
+
     <div class="container">
-        <div class="error-message" id="errorMessage">
-            <h3>Error Loading Scanner</h3>
-            <p id="errorText"></p>
-        </div>
-
-        <div class="permission-container" id="permissionContainer">
+        <div class="permission-message" id="permissionMessage">
             <h2>Camera Permission Required</h2>
-            <p>This app needs access to your camera to scan barcodes. Your camera will only be used while the scanner is active.</p>
-            <button id="requestPermission" class="btn">Allow Camera Access</button>
-            <div class="permission-denied" id="permissionDenied">
-                <p>Camera access was denied. Please enable camera access in your browser settings to use the scanner.</p>
-            </div>
+            <p>Please allow camera access to scan barcodes.</p>
         </div>
 
-        <div class="scanner-container" id="scannerContainer">
-            <video id="video" playsinline></video>
+        <div id="interactive" class="viewport">
             <div class="scanner-overlay"></div>
         </div>
 
-        <button id="startButton" class="btn" style="display: none;">Start Scanner</button>
-        
-        <div class="result">
+        <div class="controls">
+            <button id="startButton" class="btn">Start Scanner</button>
+        </div>
+
+        <div class="result-container">
             <h2>Scanned Result:</h2>
             <p id="result">No barcode detected yet</p>
         </div>
     </div>
 
     <script>
-        const video = document.getElementById('video');
         const startButton = document.getElementById('startButton');
         const resultElement = document.getElementById('result');
-        const permissionContainer = document.getElementById('permissionContainer');
-        const scannerContainer = document.getElementById('scannerContainer');
-        const requestPermissionButton = document.getElementById('requestPermission');
-        const permissionDenied = document.getElementById('permissionDenied');
-        const errorMessage = document.getElementById('errorMessage');
-        const errorText = document.getElementById('errorText');
-        let codeReader;
-
-        // Check if ZXing library is loaded
-        function checkZXingLoaded() {
-            return typeof ZXing !== 'undefined';
-        }
-
-        function showError(message) {
-            errorText.textContent = message;
-            errorMessage.classList.add('show');
-        }
-
-        async function requestCameraPermission() {
-            try {
-                // First check if ZXing is loaded
-                if (!checkZXingLoaded()) {
-                    throw new Error('Barcode scanning library failed to load. Please refresh the page.');
-                }
-
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                stream.getTracks().forEach(track => track.stop()); // Stop the stream immediately
-                
-                // Permission granted, show scanner interface
-                permissionContainer.style.display = 'none';
-                scannerContainer.classList.add('active');
-                startButton.style.display = 'block';
-                
-                // Initialize scanner
-                await initializeScanner();
-            } catch (err) {
-                console.error('Error:', err);
-                if (err.name === 'NotAllowedError') {
-                    permissionDenied.classList.add('show');
-                    requestPermissionButton.disabled = true;
-                } else {
-                    showError(err.message || 'Failed to initialize camera. Please make sure you\'re using a supported browser.');
-                }
-            }
-        }
+        const permissionMessage = document.getElementById('permissionMessage');
+        let isScanning = false;
 
         async function initializeScanner() {
             try {
-                if (!checkZXingLoaded()) {
-                    throw new Error('Barcode scanning library is not available.');
-                }
-                codeReader = new ZXing.BrowserMultiFormatReader();
-                startButton.addEventListener('click', toggleScanner);
+                await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                permissionMessage.style.display = 'none';
+                
+                Quagga.init({
+                    inputStream: {
+                        name: "Live",
+                        type: "LiveStream",
+                        target: document.querySelector("#interactive"),
+                        constraints: {
+                            facingMode: "environment"
+                        },
+                    },
+                    decoder: {
+                        readers: [
+                            "ean_reader",
+                            "ean_8_reader",
+                            "code_128_reader",
+                            "code_39_reader",
+                            "upc_reader",
+                            "upc_e_reader",
+                            "codabar_reader"
+                        ]
+                    }
+                }, function(err) {
+                    if (err) {
+                        console.error(err);
+                        resultElement.textContent = "Error starting scanner: " + err.message;
+                        return;
+                    }
+                    
+                    startButton.addEventListener('click', toggleScanner);
+                    startButton.disabled = false;
+                });
+
+                Quagga.onDetected(function(result) {
+                    if (result.codeResult.code) {
+                        resultElement.textContent = result.codeResult.code;
+                        if (navigator.vibrate) {
+                            navigator.vibrate(200);
+                        }
+                    }
+                });
+
             } catch (err) {
-                console.error(err);
-                showError('Failed to initialize scanner: ' + err.message);
-                throw err;
+                console.error('Error accessing camera:', err);
+                permissionMessage.innerHTML = `
+                    <h2>Camera Access Error</h2>
+                    <p>Unable to access camera. Please make sure you've granted camera permissions.</p>
+                `;
             }
         }
 
-        async function toggleScanner() {
-            if (startButton.textContent === 'Start Scanner') {
-                try {
-                    startButton.disabled = true;
-                    await codeReader.decodeFromVideoDevice(null, video, (result, err) => {
-                        if (result) {
-                            resultElement.textContent = result.text;
-                            // Optional: Vibrate on successful scan
-                            if (navigator.vibrate) {
-                                navigator.vibrate(200);
-                            }
-                        }
-                        if (err && !(err instanceof ZXing.NotFoundException)) {
-                            console.error(err);
-                        }
-                    });
-                    startButton.textContent = 'Stop Scanner';
-                } catch (err) {
-                    console.error(err);
-                    showError('Error accessing camera: ' + err.message);
-                }
-                startButton.disabled = false;
+        function toggleScanner() {
+            if (!isScanning) {
+                Quagga.start();
+                startButton.textContent = 'Stop Scanner';
+                isScanning = true;
             } else {
-                codeReader.reset();
+                Quagga.stop();
                 startButton.textContent = 'Start Scanner';
-                resultElement.textContent = 'No barcode detected yet';
+                isScanning = false;
             }
         }
 
-        // Add click handler for permission request
-        requestPermissionButton.addEventListener('click', requestCameraPermission);
-
-        // Check library loading on page load
-        window.addEventListener('load', () => {
-            if (!checkZXingLoaded()) {
-                showError('Barcode scanning library failed to load. Please refresh the page or try a different browser.');
-                requestPermissionButton.disabled = true;
-            }
-        });
+        // Initialize when page loads
+        window.addEventListener('load', initializeScanner);
     </script>
 </body>
 </html>
