@@ -159,8 +159,8 @@
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: 'environment',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
+                        width: { ideal: 1080 },
+                        height: { ideal: 1920 },
                         frameRate: { ideal: 60 },
                         focusMode: 'continuous',
                         exposureMode: 'continuous',
@@ -170,11 +170,6 @@
 
                 video.srcObject = stream;
                 await video.play();
-
-                // Force landscape orientation if possible
-                if (screen.orientation && screen.orientation.lock) {
-                    await screen.orientation.lock('landscape').catch(console.warn);
-                }
 
                 startScanning();
             } catch (error) {
@@ -218,10 +213,6 @@
             
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
-            }
-            
-            if (screen.orientation && screen.orientation.unlock) {
-                screen.orientation.unlock();
             }
         }
 
