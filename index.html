@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fast EAN-13 Scanner</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <title>Ultra-Fast Scanner</title>
     <style>
         * {
             margin: 0;
@@ -13,51 +12,42 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: system-ui, -apple-system, sans-serif;
             background: #000;
             height: 100vh;
             overflow: hidden;
         }
 
-        /* Home Screen */
         .home-screen {
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background: white;
+            background: #fff;
         }
 
         .start-btn {
             background: #2563eb;
             color: white;
             border: none;
-            padding: 20px 40px;
-            border-radius: 12px;
-            font-size: 1.5rem;
+            padding: 24px 48px;
+            border-radius: 16px;
+            font-size: 24px;
             font-weight: bold;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
         }
 
-        /* Scanner Screen */
         .scanner-screen {
             display: none;
             height: 100vh;
-            position: relative;
-        }
-
-        #interactive.viewport {
             width: 100vw;
-            height: 100vh;
             position: relative;
         }
 
-        #interactive.viewport > video, 
-        #interactive.viewport > canvas {
+        #video {
             width: 100%;
             height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
+            object-fit: cover;
         }
 
         .scanner-overlay {
@@ -65,36 +55,26 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 280px; /* Narrower scan area */
-            height: 100px; /* Shorter scan area */
-            border: 2px solid #ff3b30;
+            width: 280px;
+            height: 100px;
+            border: 3px solid #ff3b30;
             background: rgba(255, 59, 48, 0.1);
             box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
         }
 
-        .center-line {
-            position: absolute;
-            left: 50%;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: rgba(255, 59, 48, 0.8);
-            transform: translateX(-50%);
-        }
-
         .scan-line {
             position: absolute;
+            top: 50%;
             left: 0;
             width: 100%;
             height: 2px;
             background: #ff3b30;
-            animation: scan 2s linear infinite;
+            animation: scan 1s linear infinite;
         }
 
         @keyframes scan {
-            0% { top: 0; }
-            50% { top: calc(100% - 2px); }
-            100% { top: 0; }
+            0% { transform: translateY(-50px); }
+            100% { transform: translateY(50px); }
         }
 
         .result {
@@ -104,10 +84,11 @@
             transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.8);
             color: white;
-            padding: 10px 20px;
-            border-radius: 20px;
+            padding: 12px 24px;
+            border-radius: 24px;
             width: 90%;
             text-align: center;
+            font-size: 18px;
         }
 
         .close-btn {
@@ -117,123 +98,153 @@
             background: rgba(0, 0, 0, 0.5);
             color: white;
             border: none;
-            padding: 10px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
-            width: 44px;
-            height: 44px;
-            font-size: 18px;
+            font-size: 24px;
             z-index: 1000;
+        }
+
+        .unsupported {
+            padding: 20px;
+            background: #fee2e2;
+            color: #dc2626;
+            text-align: center;
+            display: none;
         }
     </style>
 </head>
 <body>
+    <div class="unsupported" id="unsupported">
+        Your browser doesn't support the modern barcode scanner. Please use Chrome, Edge, or Samsung Internet.
+    </div>
+
     <div class="home-screen" id="homeScreen">
         <button class="start-btn" id="openScanner">START SCAN</button>
     </div>
 
     <div class="scanner-screen" id="scannerScreen">
         <button class="close-btn" id="closeScanner">×</button>
-        <div id="interactive" class="viewport">
-            <div class="scanner-overlay">
-                <div class="center-line"></div>
-                <div class="scan-line"></div>
-            </div>
+        <video id="video" playsinline autoplay></video>
+        <div class="scanner-overlay">
+            <div class="scan-line"></div>
         </div>
-        <div class="result" id="result">Align barcode in center</div>
+        <div class="result" id="result">Ready to scan</div>
     </div>
 
     <script>
         const homeScreen = document.getElementById('homeScreen');
         const scannerScreen = document.getElementById('scannerScreen');
-        const openScannerBtn = document.getElementById('openScanner');
-        const closeScannerBtn = document.getElementById('closeScanner');
-        const resultElement = document.getElementById('result');
+        const video = document.getElementById('video');
+        const result = document.getElementById('result');
+        const unsupported = document.getElementById('unsupported');
         
-        let lastResult = null;
+        let detector;
+        let stream;
+        let isScanning = false;
+        let scanInterval;
 
-        function initScanner() {
-            Quagga.init({
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: document.querySelector("#interactive"),
-                    constraints: {
-                        facingMode: "environment",
-                        aspectRatio: { min: 1.5 },
-                        focusMode: "continuous",
-                        zoom: 2.0 // Digital zoom for closer focus
-                    },
-                    area: { // Restrict scanning to center area
-                        top: "30%",
-                        right: "20%",
-                        left: "20%",
-                        bottom: "30%"
-                    }
-                },
-                decoder: {
-                    readers: ["ean_13_reader"],
-                    multiple: false
-                },
-                locate: true,
-                frequency: 15, // Increased scan frequency
-                debug: false
-            }, function(err) {
-                if (err) {
-                    console.error(err);
-                    alert("Scanner error! Please try again.");
-                    closeScanner();
-                    return;
-                }
-                Quagga.start();
-            });
+        // Check if BarcodeDetector is supported
+        if (!('BarcodeDetector' in window)) {
+            unsupported.style.display = 'block';
+            document.getElementById('openScanner').style.display = 'none';
+        }
 
-            // Improved detection handler
-            Quagga.onDetected(function(result) {
-                let code = result.codeResult.code;
+        async function initializeScanner() {
+            try {
+                // Create detector specifically for EAN-13
+                detector = new BarcodeDetector({ formats: ['ean_13'] });
                 
-                if (code && code.length === 13 && code !== lastResult) {
-                    lastResult = code;
-                    resultElement.textContent = code;
-                    
-                    // Vibration feedback
-                    if (navigator.vibrate) {
-                        navigator.vibrate(50); // Shorter vibration
+                // Get camera with specific constraints
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 60 },
+                        focusMode: 'continuous',
+                        exposureMode: 'continuous',
+                        whiteBalanceMode: 'continuous'
                     }
+                });
+
+                video.srcObject = stream;
+                await video.play();
+
+                // Force landscape orientation if possible
+                if (screen.orientation && screen.orientation.lock) {
+                    await screen.orientation.lock('landscape').catch(console.warn);
                 }
-            });
-        }
 
-        function startScanner() {
-            homeScreen.style.display = 'none';
-            scannerScreen.style.display = 'block';
-            
-            if (screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('landscape').catch(console.warn);
+                startScanning();
+            } catch (error) {
+                console.error('Scanner initialization failed:', error);
+                result.textContent = 'Failed to start scanner';
             }
-            
-            initScanner();
         }
 
-        function closeScanner() {
-            Quagga.stop();
+        async function startScanning() {
+            if (!detector || isScanning) return;
+            
+            isScanning = true;
+            
+            // Scan every 16ms (approximately 60fps)
+            scanInterval = setInterval(async () => {
+                try {
+                    const barcodes = await detector.detect(video);
+                    
+                    if (barcodes.length > 0) {
+                        const barcode = barcodes[0];
+                        
+                        // Check if it's a valid EAN-13
+                        if (barcode.rawValue.length === 13) {
+                            result.textContent = barcode.rawValue;
+                            
+                            // Provide feedback
+                            if (navigator.vibrate) {
+                                navigator.vibrate(50);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Detection error:', error);
+                }
+            }, 16); // ~60fps scanning rate
+        }
+
+        function stopScanning() {
+            isScanning = false;
+            clearInterval(scanInterval);
+            
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
             
             if (screen.orientation && screen.orientation.unlock) {
                 screen.orientation.unlock();
             }
-            
-            scannerScreen.style.display = 'none';
-            homeScreen.style.display = 'flex';
-            lastResult = null;
-            resultElement.textContent = 'Align barcode in center';
         }
 
-        openScannerBtn.addEventListener('click', startScanner);
-        closeScannerBtn.addEventListener('click', closeScanner);
+        // Event Listeners
+        document.getElementById('openScanner').addEventListener('click', () => {
+            homeScreen.style.display = 'none';
+            scannerScreen.style.display = 'block';
+            initializeScanner();
+        });
 
-        // Handle page visibility
+        document.getElementById('closeScanner').addEventListener('click', () => {
+            stopScanning();
+            scannerScreen.style.display = 'none';
+            homeScreen.style.display = 'flex';
+            result.textContent = 'Ready to scan';
+        });
+
+        // Handle page visibility changes
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                closeScanner();
+                stopScanning();
+                scannerScreen.style.display = 'none';
+                homeScreen.style.display = 'flex';
             }
         });
     </script>
