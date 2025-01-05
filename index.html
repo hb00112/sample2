@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barcode Scanner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EAN-13 Scanner</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     <style>
         * {
@@ -18,29 +18,62 @@
             min-height: 100vh;
         }
 
-        .header {
-            background: #2563eb;
-            color: white;
-            padding: 1rem;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        /* Home Screen Styles */
+        .home-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 2rem;
+            background: white;
         }
 
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 1rem;
+        .home-title {
+            font-size: 2rem;
+            color: #1f2937;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .start-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-size: 1.25rem;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+            width: 80%;
+            max-width: 300px;
+        }
+
+        .start-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Scanner Screen Styles */
+        .scanner-screen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: black;
         }
 
         #interactive.viewport {
+            width: 100vw;
+            height: 100vh;
             position: relative;
-            width: 100%;
-            height: 300px;
-            border-radius: 12px;
-            overflow: hidden;
+            background: black;
         }
 
-        #interactive.viewport video, #interactive.viewport canvas {
+        #interactive.viewport > video, #interactive.viewport > canvas {
+            max-width: 100%;
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -52,158 +85,246 @@
             left: 50%;
             transform: translate(-50%, -50%);
             width: 80%;
-            height: 40%;
+            height: 150px;
             border: 2px solid #2563eb;
             border-radius: 8px;
             pointer-events: none;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+        }
+
+        .scanner-laser {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: #2563eb;
+            animation: scan 2s infinite;
+        }
+
+        @keyframes scan {
+            0% { top: 0; }
+            50% { top: 100%; }
+            100% { top: 0; }
         }
 
         .controls {
-            margin: 1rem 0;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            width: 90%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
         .btn {
             background: #2563eb;
             color: white;
             border: none;
-            padding: 0.75rem 1.5rem;
+            padding: 0.75rem;
             border-radius: 8px;
             font-size: 1rem;
-            width: 100%;
             cursor: pointer;
-            margin: 0.5rem 0;
-        }
-
-        .btn:disabled {
-            background: #93c5fd;
+            width: 100%;
         }
 
         .result-container {
-            background: white;
+            background: rgba(255, 255, 255, 0.9);
             padding: 1rem;
             border-radius: 12px;
-            margin-top: 1rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
         }
 
-        .result-container h2 {
-            margin-bottom: 0.5rem;
+        .close-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
             color: #1f2937;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 1000;
         }
 
-        #result {
-            word-break: break-all;
-            color: #4b5563;
+        /* Landscape orientation enforcement */
+        @media screen and (orientation: portrait) {
+            .scanner-screen .orientation-message {
+                display: flex;
+            }
         }
 
-        .permission-message {
-            background: white;
-            padding: 1rem;
-            border-radius: 12px;
-            margin: 1rem 0;
+        .orientation-message {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            justify-content: center;
+            align-items: center;
             text-align: center;
+            padding: 2rem;
+            z-index: 2000;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Barcode Scanner</h1>
+    <!-- Home Screen -->
+    <div class="home-screen" id="homeScreen">
+        <h1 class="home-title">EAN-13 Barcode Scanner</h1>
+        <button class="start-btn" id="openScanner">Start Scanning</button>
     </div>
 
-    <div class="container">
-        <div class="permission-message" id="permissionMessage">
-            <h2>Camera Permission Required</h2>
-            <p>Please allow camera access to scan barcodes.</p>
+    <!-- Scanner Screen -->
+    <div class="scanner-screen" id="scannerScreen">
+        <div class="orientation-message">
+            Please rotate your device to landscape mode for better scanning
         </div>
-
+        
+        <button class="close-btn" id="closeScanner">Close</button>
+        
         <div id="interactive" class="viewport">
-            <div class="scanner-overlay"></div>
+            <div class="scanner-overlay">
+                <div class="scanner-laser"></div>
+            </div>
         </div>
 
         <div class="controls">
-            <button id="startButton" class="btn">Start Scanner</button>
-        </div>
-
-        <div class="result-container">
-            <h2>Scanned Result:</h2>
-            <p id="result">No barcode detected yet</p>
+            <div class="result-container">
+                <h3>Scanned Code:</h3>
+                <p id="result">No barcode detected yet</p>
+            </div>
         </div>
     </div>
 
     <script>
-        const startButton = document.getElementById('startButton');
+        const homeScreen = document.getElementById('homeScreen');
+        const scannerScreen = document.getElementById('scannerScreen');
+        const openScannerBtn = document.getElementById('openScanner');
+        const closeScannerBtn = document.getElementById('closeScanner');
         const resultElement = document.getElementById('result');
-        const permissionMessage = document.getElementById('permissionMessage');
-        let isScanning = false;
+        
+        let lastResult = null;
+        let validResults = [];
+        const REQUIRED_MATCHES = 3; // Number of matching scans required for validation
 
-        async function initializeScanner() {
-            try {
-                await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                permissionMessage.style.display = 'none';
-                
-                Quagga.init({
-                    inputStream: {
-                        name: "Live",
-                        type: "LiveStream",
-                        target: document.querySelector("#interactive"),
-                        constraints: {
-                            facingMode: "environment"
-                        },
+        function isValidEAN13(code) {
+            if (!code || code.length !== 13 || !/^\d{13}$/.test(code)) return false;
+            
+            let sum = 0;
+            for (let i = 0; i < 12; i++) {
+                sum += parseInt(code[i]) * (i % 2 === 0 ? 1 : 3);
+            }
+            const checkDigit = (10 - (sum % 10)) % 10;
+            return checkDigit === parseInt(code[12]);
+        }
+
+        function initScanner() {
+            Quagga.init({
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: document.querySelector("#interactive"),
+                    constraints: {
+                        facingMode: "environment",
+                        aspectRatio: { min: 1.5 }, // Enforce landscape
                     },
-                    decoder: {
-                        readers: [
-                            "ean_reader",
-                            "ean_8_reader",
-                            "code_128_reader",
-                            "code_39_reader",
-                            "upc_reader",
-                            "upc_e_reader",
-                            "codabar_reader"
-                        ]
-                    }
-                }, function(err) {
-                    if (err) {
-                        console.error(err);
-                        resultElement.textContent = "Error starting scanner: " + err.message;
-                        return;
-                    }
-                    
-                    startButton.addEventListener('click', toggleScanner);
-                    startButton.disabled = false;
-                });
+                },
+                decoder: {
+                    readers: ["ean_reader"], // Only EAN-13
+                    multiple: false
+                },
+                locate: true,
+                frequency: 10,
+            }, function(err) {
+                if (err) {
+                    console.error(err);
+                    alert("Error starting scanner: " + err.message);
+                    closeScanner();
+                    return;
+                }
+                
+                Quagga.start();
+            });
 
-                Quagga.onDetected(function(result) {
-                    if (result.codeResult.code) {
-                        resultElement.textContent = result.codeResult.code;
-                        if (navigator.vibrate) {
-                            navigator.vibrate(200);
+            Quagga.onDetected(function(result) {
+                let code = result.codeResult.code;
+                
+                // Validate EAN-13 format and checksum
+                if (isValidEAN13(code)) {
+                    // Add to validation array
+                    validResults.push(code);
+                    
+                    // Check if we have enough matching results
+                    if (validResults.length >= REQUIRED_MATCHES) {
+                        // Check if last 3 results are the same
+                        let lastThree = validResults.slice(-REQUIRED_MATCHES);
+                        if (lastThree.every(res => res === lastThree[0])) {
+                            if (lastThree[0] !== lastResult) {
+                                lastResult = lastThree[0];
+                                resultElement.textContent = lastResult;
+                                
+                                // Provide feedback
+                                if (navigator.vibrate) {
+                                    navigator.vibrate(200);
+                                }
+                            }
                         }
                     }
-                });
-
-            } catch (err) {
-                console.error('Error accessing camera:', err);
-                permissionMessage.innerHTML = `
-                    <h2>Camera Access Error</h2>
-                    <p>Unable to access camera. Please make sure you've granted camera permissions.</p>
-                `;
-            }
+                    
+                    // Keep array size manageable
+                    if (validResults.length > 10) {
+                        validResults.shift();
+                    }
+                }
+            });
         }
 
-        function toggleScanner() {
-            if (!isScanning) {
-                Quagga.start();
-                startButton.textContent = 'Stop Scanner';
-                isScanning = true;
-            } else {
+        function startScanner() {
+            homeScreen.style.display = 'none';
+            scannerScreen.style.display = 'block';
+            
+            // Request screen lock to landscape if supported
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(err => console.warn('Orientation lock failed:', err));
+            }
+            
+            initScanner();
+        }
+
+        function closeScanner() {
+            if (Quagga) {
                 Quagga.stop();
-                startButton.textContent = 'Start Scanner';
-                isScanning = false;
             }
+            
+            // Release screen lock if supported
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+            }
+            
+            scannerScreen.style.display = 'none';
+            homeScreen.style.display = 'flex';
+            lastResult = null;
+            validResults = [];
+            resultElement.textContent = 'No barcode detected yet';
         }
 
-        // Initialize when page loads
-        window.addEventListener('load', initializeScanner);
+        // Event Listeners
+        openScannerBtn.addEventListener('click', startScanner);
+        closeScannerBtn.addEventListener('click', closeScanner);
+
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && Quagga) {
+                closeScanner();
+            }
+        });
     </script>
 </body>
 </html>
