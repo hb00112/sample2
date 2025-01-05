@@ -44,6 +44,11 @@
             border-radius: 12px;
             overflow: hidden;
             margin: 1rem 0;
+            display: none;
+        }
+
+        .scanner-container.active {
+            display: block;
         }
 
         #video {
@@ -90,6 +95,31 @@
         #result {
             word-break: break-all;
         }
+
+        .permission-container {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin: 1rem 0;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .permission-container p {
+            margin-bottom: 1rem;
+            color: #4b5563;
+            line-height: 1.5;
+        }
+
+        .permission-denied {
+            color: #dc2626;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .permission-denied.show {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -98,12 +128,21 @@
     </div>
     
     <div class="container">
-        <div class="scanner-container">
+        <div class="permission-container" id="permissionContainer">
+            <h2>Camera Permission Required</h2>
+            <p>This app needs access to your camera to scan barcodes. Your camera will only be used while the scanner is active.</p>
+            <button id="requestPermission" class="btn">Allow Camera Access</button>
+            <div class="permission-denied" id="permissionDenied">
+                <p>Camera access was denied. Please enable camera access in your browser settings to use the scanner.</p>
+            </div>
+        </div>
+
+        <div class="scanner-container" id="scannerContainer">
             <video id="video" playsinline></video>
             <div class="scanner-overlay"></div>
         </div>
 
-        <button id="startButton" class="btn">Start Scanner</button>
+        <button id="startButton" class="btn" style="display: none;">Start Scanner</button>
         
         <div class="result">
             <h2>Scanned Result:</h2>
@@ -115,19 +154,34 @@
         const video = document.getElementById('video');
         const startButton = document.getElementById('startButton');
         const resultElement = document.getElementById('result');
+        const permissionContainer = document.getElementById('permissionContainer');
+        const scannerContainer = document.getElementById('scannerContainer');
+        const requestPermissionButton = document.getElementById('requestPermission');
+        const permissionDenied = document.getElementById('permissionDenied');
         let codeReader;
+
+        async function requestCameraPermission() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                stream.getTracks().forEach(track => track.stop()); // Stop the stream immediately
+                
+                // Permission granted, show scanner interface
+                permissionContainer.style.display = 'none';
+                scannerContainer.classList.add('active');
+                startButton.style.display = 'block';
+                
+                // Initialize scanner
+                initializeScanner();
+            } catch (err) {
+                console.error('Camera permission denied:', err);
+                permissionDenied.classList.add('show');
+                requestPermissionButton.disabled = true;
+            }
+        }
 
         async function initializeScanner() {
             try {
                 codeReader = new ZXing.BrowserMultiFormatReader();
-                const constraints = {
-                    video: {
-                        facingMode: 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                };
-                
                 startButton.addEventListener('click', toggleScanner);
             } catch (err) {
                 console.error(err);
@@ -164,8 +218,8 @@
             }
         }
 
-        // Initialize when page loads
-        window.addEventListener('load', initializeScanner);
+        // Add click handler for permission request
+        requestPermissionButton.addEventListener('click', requestCameraPermission);
     </script>
 </body>
 </html>
