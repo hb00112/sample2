@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>EAN-13 Scanner</title>
+    <title>Fast EAN-13 Scanner</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     <style>
         * {
@@ -14,69 +14,50 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f0f0f0;
-            min-height: 100vh;
+            background: #000;
+            height: 100vh;
+            overflow: hidden;
         }
 
-        /* Home Screen Styles */
+        /* Home Screen */
         .home-screen {
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
-            min-height: 100vh;
-            padding: 2rem;
+            align-items: center;
+            height: 100vh;
             background: white;
-        }
-
-        .home-title {
-            font-size: 2rem;
-            color: #1f2937;
-            margin-bottom: 2rem;
-            text-align: center;
         }
 
         .start-btn {
             background: #2563eb;
             color: white;
             border: none;
-            padding: 1rem 2rem;
+            padding: 20px 40px;
             border-radius: 12px;
-            font-size: 1.25rem;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s;
-            width: 80%;
-            max-width: 300px;
+            font-size: 1.5rem;
+            font-weight: bold;
         }
 
-        .start-btn:active {
-            transform: scale(0.98);
-        }
-
-        /* Scanner Screen Styles */
+        /* Scanner Screen */
         .scanner-screen {
             display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: black;
+            height: 100vh;
+            position: relative;
         }
 
         #interactive.viewport {
             width: 100vw;
             height: 100vh;
             position: relative;
-            background: black;
         }
 
-        #interactive.viewport > video, #interactive.viewport > canvas {
-            max-width: 100%;
+        #interactive.viewport > video, 
+        #interactive.viewport > canvas {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
         }
 
         .scanner-overlay {
@@ -84,123 +65,81 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 80%;
-            height: 150px;
-            border: 2px solid #2563eb;
-            border-radius: 8px;
-            pointer-events: none;
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+            width: 280px; /* Narrower scan area */
+            height: 100px; /* Shorter scan area */
+            border: 2px solid #ff3b30;
+            background: rgba(255, 59, 48, 0.1);
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
         }
 
-        .scanner-laser {
+        .center-line {
             position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: rgba(255, 59, 48, 0.8);
+            transform: translateX(-50%);
+        }
+
+        .scan-line {
+            position: absolute;
+            left: 0;
             width: 100%;
             height: 2px;
-            background: #2563eb;
-            animation: scan 2s infinite;
+            background: #ff3b30;
+            animation: scan 2s linear infinite;
         }
 
         @keyframes scan {
             0% { top: 0; }
-            50% { top: 100%; }
+            50% { top: calc(100% - 2px); }
             100% { top: 0; }
         }
 
-        .controls {
+        .result {
             position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 1000;
-            width: 90%;
-            max-width: 400px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .btn {
-            background: #2563eb;
+            background: rgba(0, 0, 0, 0.8);
             color: white;
-            border: none;
-            padding: 0.75rem;
-            border-radius: 8px;
-            font-size: 1rem;
-            cursor: pointer;
-            width: 100%;
-        }
-
-        .result-container {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 1rem;
-            border-radius: 12px;
-            margin-bottom: 10px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            width: 90%;
+            text-align: center;
         }
 
         .close-btn {
             position: fixed;
             top: 20px;
             right: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #1f2937;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            z-index: 1000;
-        }
-
-        /* Landscape orientation enforcement */
-        @media screen and (orientation: portrait) {
-            .scanner-screen .orientation-message {
-                display: flex;
-            }
-        }
-
-        .orientation-message {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0, 0, 0, 0.5);
             color: white;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            padding: 2rem;
-            z-index: 2000;
+            border: none;
+            padding: 10px;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            font-size: 18px;
+            z-index: 1000;
         }
     </style>
 </head>
 <body>
-    <!-- Home Screen -->
     <div class="home-screen" id="homeScreen">
-        <h1 class="home-title">EAN-13 Barcode Scanner</h1>
-        <button class="start-btn" id="openScanner">Start Scanning</button>
+        <button class="start-btn" id="openScanner">START SCAN</button>
     </div>
 
-    <!-- Scanner Screen -->
     <div class="scanner-screen" id="scannerScreen">
-        <div class="orientation-message">
-            Please rotate your device to landscape mode for better scanning
-        </div>
-        
-        <button class="close-btn" id="closeScanner">Close</button>
-        
+        <button class="close-btn" id="closeScanner">×</button>
         <div id="interactive" class="viewport">
             <div class="scanner-overlay">
-                <div class="scanner-laser"></div>
+                <div class="center-line"></div>
+                <div class="scan-line"></div>
             </div>
         </div>
-
-        <div class="controls">
-            <div class="result-container">
-                <h3>Scanned Code:</h3>
-                <p id="result">No barcode detected yet</p>
-            </div>
-        </div>
+        <div class="result" id="result">Align barcode in center</div>
     </div>
 
     <script>
@@ -211,19 +150,6 @@
         const resultElement = document.getElementById('result');
         
         let lastResult = null;
-        let validResults = [];
-        const REQUIRED_MATCHES = 3; // Number of matching scans required for validation
-
-        function isValidEAN13(code) {
-            if (!code || code.length !== 13 || !/^\d{13}$/.test(code)) return false;
-            
-            let sum = 0;
-            for (let i = 0; i < 12; i++) {
-                sum += parseInt(code[i]) * (i % 2 === 0 ? 1 : 3);
-            }
-            const checkDigit = (10 - (sum % 10)) % 10;
-            return checkDigit === parseInt(code[12]);
-        }
 
         function initScanner() {
             Quagga.init({
@@ -233,54 +159,45 @@
                     target: document.querySelector("#interactive"),
                     constraints: {
                         facingMode: "environment",
-                        aspectRatio: { min: 1.5 }, // Enforce landscape
+                        aspectRatio: { min: 1.5 },
+                        focusMode: "continuous",
+                        zoom: 2.0 // Digital zoom for closer focus
                     },
+                    area: { // Restrict scanning to center area
+                        top: "30%",
+                        right: "20%",
+                        left: "20%",
+                        bottom: "30%"
+                    }
                 },
                 decoder: {
-                    readers: ["ean_reader"], // Only EAN-13
+                    readers: ["ean_13_reader"],
                     multiple: false
                 },
                 locate: true,
-                frequency: 10,
+                frequency: 15, // Increased scan frequency
+                debug: false
             }, function(err) {
                 if (err) {
                     console.error(err);
-                    alert("Error starting scanner: " + err.message);
+                    alert("Scanner error! Please try again.");
                     closeScanner();
                     return;
                 }
-                
                 Quagga.start();
             });
 
+            // Improved detection handler
             Quagga.onDetected(function(result) {
                 let code = result.codeResult.code;
                 
-                // Validate EAN-13 format and checksum
-                if (isValidEAN13(code)) {
-                    // Add to validation array
-                    validResults.push(code);
+                if (code && code.length === 13 && code !== lastResult) {
+                    lastResult = code;
+                    resultElement.textContent = code;
                     
-                    // Check if we have enough matching results
-                    if (validResults.length >= REQUIRED_MATCHES) {
-                        // Check if last 3 results are the same
-                        let lastThree = validResults.slice(-REQUIRED_MATCHES);
-                        if (lastThree.every(res => res === lastThree[0])) {
-                            if (lastThree[0] !== lastResult) {
-                                lastResult = lastThree[0];
-                                resultElement.textContent = lastResult;
-                                
-                                // Provide feedback
-                                if (navigator.vibrate) {
-                                    navigator.vibrate(200);
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Keep array size manageable
-                    if (validResults.length > 10) {
-                        validResults.shift();
+                    // Vibration feedback
+                    if (navigator.vibrate) {
+                        navigator.vibrate(50); // Shorter vibration
                     }
                 }
             });
@@ -290,20 +207,16 @@
             homeScreen.style.display = 'none';
             scannerScreen.style.display = 'block';
             
-            // Request screen lock to landscape if supported
             if (screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('landscape').catch(err => console.warn('Orientation lock failed:', err));
+                screen.orientation.lock('landscape').catch(console.warn);
             }
             
             initScanner();
         }
 
         function closeScanner() {
-            if (Quagga) {
-                Quagga.stop();
-            }
+            Quagga.stop();
             
-            // Release screen lock if supported
             if (screen.orientation && screen.orientation.unlock) {
                 screen.orientation.unlock();
             }
@@ -311,17 +224,15 @@
             scannerScreen.style.display = 'none';
             homeScreen.style.display = 'flex';
             lastResult = null;
-            validResults = [];
-            resultElement.textContent = 'No barcode detected yet';
+            resultElement.textContent = 'Align barcode in center';
         }
 
-        // Event Listeners
         openScannerBtn.addEventListener('click', startScanner);
         closeScannerBtn.addEventListener('click', closeScanner);
 
-        // Handle page visibility changes
-        document.addEventListener('visibilitychange', function() {
-            if (document.hidden && Quagga) {
+        // Handle page visibility
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
                 closeScanner();
             }
         });
