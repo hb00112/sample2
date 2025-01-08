@@ -13,35 +13,100 @@
 
         body {
             font-family: system-ui, -apple-system, sans-serif;
-            background: #000;
-            height: 100vh;
-            overflow: hidden;
+            background: #f3f4f6;
+            min-height: 100vh;
         }
 
         .home-screen {
+            padding: 20px;
             display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background: #fff;
+            flex-direction: column;
+            gap: 20px;
         }
 
         .start-btn {
             background: #2563eb;
             color: white;
             border: none;
-            padding: 24px 48px;
-            border-radius: 16px;
-            font-size: 24px;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 18px;
             font-weight: bold;
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+            width: 100%;
         }
 
-        .scanner-screen {
+        .recent-section {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .recent-section h2 {
+            margin-bottom: 12px;
+            color: #1f2937;
+            font-size: 18px;
+        }
+
+        .scanner-view {
             display: none;
-            height: 100vh;
-            width: 100vw;
+            padding: 20px;
+            background: white;
+            min-height: 100vh;
+        }
+
+        .search-container {
             position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-top: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+        }
+
+        .search-item {
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .search-item:last-child {
+            border-bottom: none;
+        }
+
+        .selected-party {
+            margin-bottom: 20px;
+            padding: 12px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+
+        .scanner-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            background: black;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
         }
 
         #video {
@@ -72,172 +137,171 @@
             animation: scan 1s linear infinite;
         }
 
+        .button-container {
+            display: flex;
+            gap: 12px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
         @keyframes scan {
             0% { transform: translateY(-50px); }
             100% { transform: translateY(50px); }
         }
-
-        .result {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 24px;
-            width: 90%;
-            text-align: center;
-            font-size: 18px;
-        }
-
-        .close-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.5);
-            color: white;
-            border: none;
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            font-size: 24px;
-            z-index: 1000;
-        }
-
-        .unsupported {
-            padding: 20px;
-            background: #fee2e2;
-            color: #dc2626;
-            text-align: center;
-            display: none;
-        }
     </style>
 </head>
 <body>
-    <div class="unsupported" id="unsupported">
-        Your browser doesn't support the modern barcode scanner. Please use Chrome, Edge, or Samsung Internet.
-    </div>
-
     <div class="home-screen" id="homeScreen">
-        <button class="start-btn" id="openScanner">START SCAN</button>
+        <button class="start-btn" id="openScanner">START SCANNING</button>
+        <div class="recent-section">
+            <h2>Recent PCS</h2>
+            <!-- Recent items will be populated here -->
+        </div>
     </div>
 
-    <div class="scanner-screen" id="scannerScreen">
-        <button class="close-btn" id="closeScanner">×</button>
-        <video id="video" playsinline autoplay></video>
-        <div class="scanner-overlay">
-            <div class="scan-line"></div>
+    <div class="scanner-view" id="scannerView">
+        <div class="search-container">
+            <input type="text" class="search-input" placeholder="Search or add party..." id="partySearch">
+            <div class="search-results" id="searchResults"></div>
         </div>
-        <div class="result" id="result">Ready to scan</div>
+
+        <div class="selected-party" id="selectedParty" style="display: none">
+            Selected: <span id="partyName"></span>
+        </div>
+
+        <div class="scanner-container">
+            <video id="video" playsinline autoplay></video>
+            <div class="scanner-overlay">
+                <div class="scan-line"></div>
+            </div>
+        </div>
+
+        <div class="button-container">
+            <button class="action-btn" id="typeBarcode">Type Barcode</button>
+            <button class="action-btn" id="selectItem">Select Item</button>
+        </div>
     </div>
 
     <script>
+        const parties = [
+            "Avni Traders Phonda",
+            "Bharne Retail Trends Panjim",
+            "BURYE EMPORIUM SIOLIM",
+            "Feelings Phonda"
+        ];
+
         const homeScreen = document.getElementById('homeScreen');
-        const scannerScreen = document.getElementById('scannerScreen');
+        const scannerView = document.getElementById('scannerView');
+        const partySearch = document.getElementById('partySearch');
+        const searchResults = document.getElementById('searchResults');
+        const selectedParty = document.getElementById('selectedParty');
+        const partyName = document.getElementById('partyName');
         const video = document.getElementById('video');
-        const result = document.getElementById('result');
-        const unsupported = document.getElementById('unsupported');
-        
+
         let detector;
         let stream;
-        let isScanning = false;
-        let scanInterval;
 
-        // Check if BarcodeDetector is supported
-        if (!('BarcodeDetector' in window)) {
-            unsupported.style.display = 'block';
-            document.getElementById('openScanner').style.display = 'none';
+        document.getElementById('openScanner').addEventListener('click', () => {
+            homeScreen.style.display = 'none';
+            scannerView.style.display = 'block';
+            initializeScanner();
+        });
+
+        partySearch.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredParties = parties.filter(party => 
+                party.toLowerCase().includes(searchTerm)
+            );
+
+            searchResults.innerHTML = '';
+            searchResults.style.display = 'block';
+
+            if (searchTerm) {
+                // Show matching parties
+                filteredParties.forEach(party => {
+                    const div = document.createElement('div');
+                    div.className = 'search-item';
+                    div.textContent = party;
+                    div.addEventListener('click', () => selectParty(party));
+                    searchResults.appendChild(div);
+                });
+
+                // Add "Add new party" option if no exact match
+                if (!parties.some(party => 
+                    party.toLowerCase() === searchTerm.toLowerCase()
+                )) {
+                    const addNew = document.createElement('div');
+                    addNew.className = 'search-item';
+                    addNew.textContent = `Add "${searchTerm}"`;
+                    addNew.addEventListener('click', () => selectParty(searchTerm));
+                    searchResults.appendChild(addNew);
+                }
+            } else {
+                searchResults.style.display = 'none';
+            }
+        });
+
+        // Close search results when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!searchResults.contains(e.target) && e.target !== partySearch) {
+                searchResults.style.display = 'none';
+            }
+        });
+
+        function selectParty(party) {
+            // Add party to list if it's new
+            if (!parties.includes(party)) {
+                parties.push(party);
+            }
+            
+            // Show selected party
+            partyName.textContent = party;
+            selectedParty.style.display = 'block';
+            searchResults.style.display = 'none';
+            partySearch.value = '';
         }
 
         async function initializeScanner() {
             try {
-                // Create detector specifically for EAN-13
                 detector = new BarcodeDetector({ formats: ['ean_13'] });
                 
-                // Get camera with specific constraints
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: 'environment',
                         width: { ideal: 1080 },
-                        height: { ideal: 1920 },
-                        frameRate: { ideal: 60 },
-                        focusMode: 'continuous',
-                        exposureMode: 'continuous',
-                        whiteBalanceMode: 'continuous'
+                        height: { ideal: 1920 }
                     }
                 });
 
                 video.srcObject = stream;
                 await video.play();
-
-                startScanning();
             } catch (error) {
                 console.error('Scanner initialization failed:', error);
-                result.textContent = 'Failed to start scanner';
             }
         }
 
-        async function startScanning() {
-            if (!detector || isScanning) return;
-            
-            isScanning = true;
-            
-            // Scan every 16ms (approximately 60fps)
-            scanInterval = setInterval(async () => {
-                try {
-                    const barcodes = await detector.detect(video);
-                    
-                    if (barcodes.length > 0) {
-                        const barcode = barcodes[0];
-                        
-                        // Check if it's a valid EAN-13
-                        if (barcode.rawValue.length === 13) {
-                            result.textContent = barcode.rawValue;
-                            
-                            // Provide feedback
-                            if (navigator.vibrate) {
-                                navigator.vibrate(50);
-                            }
-                        }
-                    }
-                } catch (error) {
-                    console.warn('Detection error:', error);
-                }
-            }, 16); // ~60fps scanning rate
+        // Handle manual barcode entry
+        document.getElementById('typeBarcode').addEventListener('click', () => {
+            // Implement manual barcode entry
+        });
+
+        // Handle item selection
+        document.getElementById('selectItem').addEventListener('click', () => {
+            // Implement item selection
+        });
+
+        // Screen orientation lock
+        if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('portrait').catch(console.error);
         }
-
-        function stopScanning() {
-            isScanning = false;
-            clearInterval(scanInterval);
-            
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-        }
-
-        // Event Listeners
-        document.getElementById('openScanner').addEventListener('click', () => {
-            homeScreen.style.display = 'none';
-            scannerScreen.style.display = 'block';
-            initializeScanner();
-        });
-
-        document.getElementById('closeScanner').addEventListener('click', () => {
-            stopScanning();
-            scannerScreen.style.display = 'none';
-            homeScreen.style.display = 'flex';
-            result.textContent = 'Ready to scan';
-        });
-
-        // Handle page visibility changes
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                stopScanning();
-                scannerScreen.style.display = 'none';
-                homeScreen.style.display = 'flex';
-            }
-        });
     </script>
 </body>
 </html>
