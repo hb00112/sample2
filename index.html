@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Inventory Scanner</title>
+    <title>Improved Barcode Scanner</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <style>
@@ -25,55 +25,10 @@
             min-height: 100vh;
         }
 
-        .search-container {
-            position: relative;
-            margin-bottom: 20px;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 16px;
-        }
-
-        .search-results {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            margin-top: 4px;
-            max-height: 200px;
-            overflow-y: auto;
-            display: none;
-            z-index: 1000;
-        }
-
-        .search-item {
-            padding: 12px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .search-item:last-child {
-            border-bottom: none;
-        }
-
-        .selected-party {
-            margin-bottom: 20px;
-            padding: 12px;
-            background: #f3f4f6;
-            border-radius: 8px;
-            font-weight: 500;
-        }
-
         .scanner-container {
             position: relative;
             width: 100%;
-            height: 200px;
+            height: 300px;
             background: black;
             border-radius: 12px;
             overflow: hidden;
@@ -108,21 +63,6 @@
             animation: scan 1s linear infinite;
         }
 
-        .button-container {
-            display: flex;
-            gap: 12px;
-        }
-
-        .action-btn {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            background: #f3f4f6;
-            color: #1f2937;
-        }
-
         .modal {
             display: none;
             position: fixed;
@@ -140,56 +80,18 @@
             left: 50%;
             transform: translate(-50%, -50%);
             background: white;
-            padding: 20px;
+            padding: 24px;
             border-radius: 12px;
             width: 90%;
             max-width: 500px;
         }
-        .suggestion-container {
-            position: relative;
-        }
 
-        .suggestions {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            margin-top: 2px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1100;
-            display: none;
-        }
-
-        .suggestion-item {
-            padding: 10px;
-            cursor: pointer;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .suggestion-item:hover {
+        .scan-result {
+            margin: 16px 0;
+            padding: 16px;
             background: #f3f4f6;
-        }
-
-        .suggestion-item.selected {
-            background: #e5e7eb;
-        }
-
-        .matched {
-            font-weight: bold;
-            color: #2563eb;
-        }
-
-        .modal-input {
-            width: 100%;
-            padding: 12px;
-            margin: 8px 0;
-            border: 2px solid #e5e7eb;
             border-radius: 8px;
-            font-size: 16px;
+            font-size: 18px;
         }
 
         .modal-btn {
@@ -199,41 +101,65 @@
             border: none;
             border-radius: 8px;
             font-size: 16px;
+            cursor: pointer;
+        }
+
+        .primary-btn {
             background: #2563eb;
             color: white;
         }
 
-        .cart-container {
-            margin-top: 20px;
-            padding: 12px;
-            background: #f3f4f6;
-            border-radius: 8px;
+        .secondary-btn {
+            background: #e5e7eb;
+            color: #1f2937;
         }
 
-        .cart-item {
-            padding: 12px;
-            margin-bottom: 8px;
-            background: white;
-            border-radius: 8px;
+        .status-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: #4b5563;
+            color: white;
+            border-radius: 24px;
+            display: none;
+            z-index: 1001;
         }
 
         @keyframes scan {
             0% { transform: translateY(-50px); }
             100% { transform: translateY(50px); }
         }
+
+        .item-details {
+            margin: 16px 0;
+        }
+
+        .item-details p {
+            margin: 8px 0;
+            font-size: 16px;
+            color: #374151;
+        }
+
+        .item-details strong {
+            color: #1f2937;
+        }
+
+        .cart-container {
+            margin-top: 20px;
+        }
+
+        .cart-item {
+            padding: 16px;
+            margin-bottom: 12px;
+            background: #f3f4f6;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="scanner-view">
-        <div class="search-container">
-            <input type="text" class="search-input" placeholder="Search or add party..." id="partySearch">
-            <div class="search-results" id="searchResults"></div>
-        </div>
-
-        <div class="selected-party" id="selectedParty" style="display: none">
-            Selected: <span id="partyName"></span>
-        </div>
-
         <div class="scanner-container">
             <video id="video" playsinline autoplay></video>
             <div class="scanner-overlay">
@@ -241,393 +167,178 @@
             </div>
         </div>
 
-        <div class="button-container">
-            <button class="action-btn" id="typeBarcode">Type Barcode</button>
-            <button class="action-btn" id="selectItem">Select Item</button>
+        <div class="status-bar" id="statusBar">
+            Scanning...
         </div>
 
         <div class="cart-container" id="cartContainer">
-            <h3>Cart Items</h3>
+            <h3>Scanned Items</h3>
             <div id="cartItems"></div>
-            <button class="modal-btn" id="saveCart">Save Cart</button>
         </div>
     </div>
 
-    <!-- Item Modal -->
-    <div class="modal" id="itemModal">
+    <div class="modal" id="scanModal">
         <div class="modal-content">
-            <h3>Item Details</h3>
-            <div id="itemDetails"></div>
-            <input type="number" class="modal-input" id="mrpInput" placeholder="MRP">
-            <button class="modal-btn" id="addToCart">Add to Cart</button>
-            <button class="action-btn" id="closeModal">Close</button>
-        </div>
-    </div>
-
-    <!-- Manual Item Selection Modal -->
-    <div class="modal" id="manualItemModal">
-        <div class="modal-content">
-            <h3>Select Item</h3>
-            
-            <div class="suggestion-container">
-                <input type="text" class="modal-input" id="itemNameInput" placeholder="Item Name">
-                <div class="suggestions" id="itemSuggestions"></div>
-            </div>
-    
-            <div class="suggestion-container">
-                <input type="text" class="modal-input" id="colorInput" placeholder="Color" disabled>
-                <div class="suggestions" id="colorSuggestions"></div>
-            </div>
-    
-            <div class="suggestion-container">
-                <input type="text" class="modal-input" id="sizeInput" placeholder="Size" disabled>
-                <div class="suggestions" id="sizeSuggestions"></div>
-            </div>
-    
-            <div class="suggestion-container">
-                <input type="number" class="modal-input" id="manualMrpInput" placeholder="MRP" disabled>
-                <div class="suggestions" id="mrpSuggestions"></div>
-            </div>
-    
-            <button class="modal-btn" id="saveManualItem">Add to Cart</button>
-            <button class="action-btn" id="closeManualModal">Close</button>
-        </div>
-    </div>
-
-    <!-- Manual Barcode Modal -->
-    <div class="modal" id="barcodeModal">
-        <div class="modal-content">
-            <h3>Enter Barcode</h3>
-            <input type="text" class="modal-input" id="barcodeInput" placeholder="Enter Barcode">
-            <button class="modal-btn" id="checkBarcode">Check Barcode</button>
-            <button class="action-btn" id="closeBarcodeModal">Close</button>
+            <h3>Scanned Barcode</h3>
+            <div class="scan-result" id="scanResult"></div>
+            <div class="item-details" id="itemDetails"></div>
+            <button class="modal-btn primary-btn" id="addToCart">Add to Cart</button>
+            <button class="modal-btn secondary-btn" id="closeModal">Scan Again</button>
         </div>
     </div>
 
     <script>
         // Firebase configuration
         const firebaseConfig = {
-    apiKey: "AIzaSyBRV-i_70Xdk86bNuQQ43jiYkRNCXGvvyo",
-    authDomain: "hcoms-221aa.firebaseapp.com",
-    databaseURL: "https://hcoms-221aa-default-rtdb.firebaseio.com",
-    projectId: "hcoms-221aa",
-    storageBucket: "hcoms-221aa.appspot.com",
-    messagingSenderId: "817694176734",
-    appId: "1:817694176734:web:176bf69333bd7119d3194f",
-    measurementId: "G-JB143EY71N"
-};
-firebase.initializeApp(firebaseConfig);
-
-        
+            apiKey: "AIzaSyBRV-i_70Xdk86bNuQQ43jiYkRNCXGvvyo",
+            authDomain: "hcoms-221aa.firebaseapp.com",
+            projectId: "hcoms-221aa",
+            storageBucket: "hcoms-221aa.appspot.com",
+            messagingSenderId: "817694176734",
+            appId: "1:817694176734:web:176bf69333bd7119d3194f"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
 
         // Predefined items
         const predefinedItems = {
-        '8902625553430': {
-            item: 'A014',
-            color: 'SKIN',
-            size: '36B',
-            mrp: 979.00
-        },
-        '8902625553447': {
-            item: 'A014',
-            color: 'SKIN',
-            size: '38B',
-            mrp: 979.00
-        },
-        '8902625553454': {
-            item: 'A014',
-            color: 'BLACK',
-            size: '36B',
-            mrp: 979.00
-        },
-        '8902625553461': {
-            item: 'B076',
-            color: 'WHITE',
-            size: '34C',
-            mrp: 849.00
-        }
-        // Add more items as needed
-    };   const itemData = {
-        items: new Set(),
-        colors: new Map(), // Map of item -> Set of colors
-        sizes: new Map(),  // Map of item-color -> Set of sizes
-        mrps: new Map()    // Map of item-color-size -> Set of MRPs
-    };
-
-    function processItemData() {
-        for (const [barcode, item] of Object.entries(predefinedItems)) {
-            // Add item
-            itemData.items.add(item.item);
-
-            // Add color for item
-            if (!itemData.colors.has(item.item)) {
-                itemData.colors.set(item.item, new Set());
+            '8902625553430': {
+                item: 'A014',
+                color: 'SKIN',
+                size: '36B',
+                mrp: 979.00
+            },
+            '8902625553447': {
+                item: 'A014',
+                color: 'SKIN',
+                size: '38B',
+                mrp: 979.00
+            },
+            '8902625553454': {
+                item: 'A014',
+                color: 'BLACK',
+                size: '36B',
+                mrp: 979.00
+            },
+            '8902625553461': {
+                item: 'B076',
+                color: 'WHITE',
+                size: '34C',
+                mrp: 849.00
             }
-            itemData.colors.get(item.item).add(item.color);
-
-            // Add size for item-color combination
-            const itemColorKey = `${item.item}-${item.color}`;
-            if (!itemData.sizes.has(itemColorKey)) {
-                itemData.sizes.set(itemColorKey, new Set());
-            }
-            itemData.sizes.get(itemColorKey).add(item.size);
-
-            // Add MRP for item-color-size combination
-            const itemColorSizeKey = `${item.item}-${item.color}-${item.size}`;
-            if (!itemData.mrps.has(itemColorSizeKey)) {
-                itemData.mrps.set(itemColorSizeKey, new Set());
-            }
-            itemData.mrps.get(itemColorSizeKey).add(item.mrp);
-        }
-    }
-
-    // Initialize the structured data
-    processItemData();
+        };
 
         // DOM Elements
         const video = document.getElementById('video');
-        const itemModal = document.getElementById('itemModal');
-        const manualItemModal = document.getElementById('manualItemModal');
-        const barcodeModal = document.getElementById('barcodeModal');
+        const scanModal = document.getElementById('scanModal');
+        const scanResult = document.getElementById('scanResult');
         const itemDetails = document.getElementById('itemDetails');
-        const mrpInput = document.getElementById('mrpInput');
+        const statusBar = document.getElementById('statusBar');
         const cartItems = document.getElementById('cartItems');
-        const itemNameInput = document.getElementById('itemNameInput');
-    const colorInput = document.getElementById('colorInput');
-    const sizeInput = document.getElementById('sizeInput');
-    const manualMrpInput = document.getElementById('manualMrpInput');
-    const itemSuggestions = document.getElementById('itemSuggestions');
-    const colorSuggestions = document.getElementById('colorSuggestions');
-    const sizeSuggestions = document.getElementById('sizeSuggestions');
-    const mrpSuggestions = document.getElementById('mrpSuggestions');
 
-
-        let currentItem = null;
+        let currentBarcode = null;
+        let isScanning = true;
         let cartArray = [];
-      
-    let currentColor = '';
-    let currentSize = '';
 
         // Initialize scanner
         async function initializeScanner() {
             try {
-                const detector = new BarcodeDetector({ formats: ['ean_13'] });
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }
                 });
                 video.srcObject = stream;
                 await video.play();
 
-                // Continuous scanning
+                const detector = new BarcodeDetector({ formats: ['ean_13'] });
+                statusBar.style.display = 'block';
+
                 async function scan() {
+                    if (!isScanning) {
+                        requestAnimationFrame(scan);
+                        return;
+                    }
+
                     try {
                         const barcodes = await detector.detect(video);
                         if (barcodes.length > 0) {
                             const barcode = barcodes[0].rawValue;
                             handleBarcodeScan(barcode);
+                            isScanning = false;
                         }
-                        requestAnimationFrame(scan);
                     } catch (error) {
                         console.error('Scanning error:', error);
-                        requestAnimationFrame(scan);
                     }
+
+                    requestAnimationFrame(scan);
                 }
+
                 scan();
             } catch (error) {
                 console.error('Scanner initialization failed:', error);
+                statusBar.textContent = 'Camera access denied';
             }
         }
 
         // Handle barcode scan
         function handleBarcodeScan(barcode) {
+            currentBarcode = barcode;
             const item = predefinedItems[barcode];
-            if (item) {
-                currentItem = { ...item, barcode };
-                displayItemModal(item);
-            }
-        }
 
-        // Display item modal
-        function displayItemModal(item) {
-            itemDetails.innerHTML = `
-                <p>Item: ${item.item}</p>
-                <p>Color: ${item.color}</p>
-                <p>Size: ${item.size}</p>
-            `;
-            mrpInput.value = item.mrp;
-            itemModal.style.display = 'block';
+            scanResult.textContent = `Barcode: ${barcode}`;
+            
+            if (item) {
+                itemDetails.innerHTML = `
+                    <p><strong>Item:</strong> ${item.item}</p>
+                    <p><strong>Color:</strong> ${item.color}</p>
+                    <p><strong>Size:</strong> ${item.size}</p>
+                    <p><strong>MRP:</strong> ₹${item.mrp}</p>
+                `;
+            } else {
+                itemDetails.innerHTML = '<p>Item not found in database</p>';
+            }
+
+            scanModal.style.display = 'block';
+            statusBar.style.display = 'none';
         }
 
         // Add to cart
-        function addToCart(item) {
-            cartArray.push(item);
-            updateCartDisplay();
+        function addToCart() {
+            const item = predefinedItems[currentBarcode];
+            if (item) {
+                cartArray.push({ ...item, barcode: currentBarcode });
+                updateCartDisplay();
+            }
+            closeModal();
         }
 
         // Update cart display
         function updateCartDisplay() {
             cartItems.innerHTML = cartArray.map((item, index) => `
                 <div class="cart-item">
-                    <p>Item: ${item.item}</p>
-                    <p>Color: ${item.color}</p>
-                    <p>Size: ${item.size}</p>
-                    <p>MRP: ₹${item.mrp}</p>
+                    <p><strong>Barcode:</strong> ${item.barcode}</p>
+                    <p><strong>Item:</strong> ${item.item}</p>
+                    <p><strong>Color:</strong> ${item.color}</p>
+                    <p><strong>Size:</strong> ${item.size}</p>
+                    <p><strong>MRP:</strong> ₹${item.mrp}</p>
                 </div>
             `).join('');
         }
 
-        function showSuggestions(input, suggestions, items, searchTerm) {
-        suggestions.innerHTML = '';
-        suggestions.style.display = 'none';
-
-        if (!searchTerm) return;
-
-        const matchedItems = Array.from(items).filter(item => 
-            item.toString().toLowerCase().includes(searchTerm.toLowerCase())
-        );
-
-        // Sort matched items to show exact matches first
-        matchedItems.sort((a, b) => {
-            const aLower = a.toString().toLowerCase();
-            const bLower = b.toString().toLowerCase();
-            const searchTermLower = searchTerm.toLowerCase();
-            
-            if (aLower === searchTermLower && bLower !== searchTermLower) return -1;
-            if (bLower === searchTermLower && aLower !== searchTermLower) return 1;
-            return aLower.localeCompare(bLower);
-        });
-
-        if (matchedItems.length > 0) {
-            matchedItems.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'suggestion-item';
-                
-                // Highlight matching part
-                const itemText = item.toString();
-                const index = itemText.toLowerCase().indexOf(searchTerm.toLowerCase());
-                if (index >= 0) {
-                    div.innerHTML = itemText.substring(0, index) +
-                        `<span class="matched">${itemText.substring(index, index + searchTerm.length)}</span>` +
-                        itemText.substring(index + searchTerm.length);
-                } else {
-                    div.textContent = itemText;
-                }
-
-                div.addEventListener('click', () => {
-                    input.value = item;
-                    suggestions.style.display = 'none';
-                    handleSelection(input, item);
-                });
-                suggestions.appendChild(div);
-            });
-            suggestions.style.display = 'block';
-        }
-    }
-
-    // Handle selection function
-    function handleSelection(input, value) {
-        switch (input) {
-            case itemNameInput:
-                currentItem = value;
-                colorInput.disabled = false;
-                colorInput.value = '';
-                sizeInput.value = '';
-                manualMrpInput.value = '';
-                colorInput.focus();
-                break;
-            case colorInput:
-                currentColor = value;
-                sizeInput.disabled = false;
-                sizeInput.value = '';
-                manualMrpInput.value = '';
-                sizeInput.focus();
-                break;
-            case sizeInput:
-                currentSize = value;
-                manualMrpInput.disabled = false;
-                manualMrpInput.value = '';
-                
-                // Auto-fill MRP if there's only one option
-                const itemColorSizeKey = `${currentItem}-${currentColor}-${currentSize}`;
-                const mrps = itemData.mrps.get(itemColorSizeKey);
-                if (mrps && mrps.size === 1) {
-                    manualMrpInput.value = Array.from(mrps)[0];
-                }
-                manualMrpInput.focus();
-                break;
-        }
-    }
-
-    // Event listeners for inputs
-    itemNameInput.addEventListener('input', (e) => {
-        showSuggestions(itemNameInput, itemSuggestions, itemData.items, e.target.value);
-    });
-        // Save to Firebase
-        async function saveToFirebase() {
-            try {
-                const orderRef = await db.collection('orders').add({
-                    items: cartArray,
-                    party: document.getElementById('partyName').textContent,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                alert('Order saved successfully!');
-                cartArray = [];
-                updateCartDisplay();
-            } catch (error) {
-                console.error('Error saving to Firebase:', error);
-                alert('Error saving order');
-            }
+        // Close modal and resume scanning
+        function closeModal() {
+            scanModal.style.display = 'none';
+            statusBar.style.display = 'block';
+            currentBarcode = null;
+            isScanning = true;
         }
 
         // Event Listeners
-        document.getElementById('addToCart').addEventListener('click', () => {
-            if (currentItem) {
-                currentItem.mrp = parseFloat(mrpInput.value);
-                addToCart(currentItem);
-                itemModal.style.display = 'none';
-                currentItem = null;
-            }
-        });
-
-        document.getElementById('selectItem').addEventListener('click', () => {
-            manualItemModal.style.display = 'block';
-        });
-
-        document.getElementById('saveManualItem').addEventListener('click', () => {
-            const item = {
-                item: document.getElementById('itemNameInput').value,
-                color: document.getElementById('colorInput').value,
-                size: document.getElementById('sizeInput').value,
-                mrp: parseFloat(document.getElementById('manualMrpInput').value)
-            };
-            addToCart(item);
-            manualItemModal.style.display = 'none';
-        });
-
-        document.getElementById('typeBarcode').addEventListener('click', () => {
-            barcodeModal.style.display = 'block';
-        });
-
-        document.getElementById('checkBarcode').addEventListener('click', () => {
-            const barcode = document.getElementById('barcodeInput').value;
-            handleBarcodeScan(barcode);
-            barcodeModal.style.display = 'none';
-        });
-
-        document.getElementById('saveCart').addEventListener('click', saveToFirebase);
-
-        // Close modal buttons
-        document.getElementById('closeModal').addEventListener('click', () => {
-            itemModal.style.display = 'none';
-        });
-
-        document.getElementById('closeManualModal').addEventListener('click', () => {
-            manualItemModal.style.display = 'none';
-        });
-
-        document.getElementById('closeBarcodeModal').addEventListener('click', () => {
-            barcodeModal.style.display = 'none';
-        });
+        document.getElementById('addToCart').addEventListener('click', addToCart);
+        document.getElementById('closeModal').addEventListener('click', closeModal);
 
         // Initialize scanner on page load
         initializeScanner();
