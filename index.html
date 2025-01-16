@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Improved Barcode Scanner</title>
+    <title>Barcode Scanner with Party Selection</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <style>
@@ -25,6 +25,65 @@
             min-height: 100vh;
         }
 
+        .party-section {
+            margin-bottom: 20px;
+        }
+
+        .party-input-container {
+            position: relative;
+        }
+
+        .party-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .party-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+
+        .suggestion-item {
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+            cursor: pointer;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .suggestion-item:hover {
+            background: #f3f4f6;
+        }
+
+        .matched-text {
+            color: #2563eb;
+            font-weight: bold;
+        }
+
+        .selected-party {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            font-weight: 500;
+            display: none;
+        }
+
         .scanner-container {
             position: relative;
             width: 100%;
@@ -33,6 +92,7 @@
             border-radius: 12px;
             overflow: hidden;
             margin-bottom: 20px;
+            display: none;
         }
 
         #video {
@@ -127,11 +187,6 @@
             z-index: 1001;
         }
 
-        @keyframes scan {
-            0% { transform: translateY(-50px); }
-            100% { transform: translateY(50px); }
-        }
-
         .item-details {
             margin: 16px 0;
         }
@@ -148,6 +203,7 @@
 
         .cart-container {
             margin-top: 20px;
+            display: none;
         }
 
         .cart-item {
@@ -156,11 +212,24 @@
             background: #f3f4f6;
             border-radius: 8px;
         }
+
+        @keyframes scan {
+            0% { transform: translateY(-50px); }
+            100% { transform: translateY(50px); }
+        }
     </style>
 </head>
 <body>
     <div class="scanner-view">
-        <div class="scanner-container">
+        <div class="party-section">
+            <div class="party-input-container">
+                <input type="text" class="party-input" id="partyInput" placeholder="Enter or select party name...">
+                <div class="party-suggestions" id="partySuggestions"></div>
+            </div>
+            <div class="selected-party" id="selectedParty"></div>
+        </div>
+
+        <div class="scanner-container" id="scannerContainer">
             <video id="video" playsinline autoplay></video>
             <div class="scanner-overlay">
                 <div class="scan-line"></div>
@@ -174,6 +243,7 @@
         <div class="cart-container" id="cartContainer">
             <h3>Scanned Items</h3>
             <div id="cartItems"></div>
+            <button class="modal-btn primary-btn" id="saveCart">Save Order</button>
         </div>
     </div>
 
@@ -199,6 +269,20 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
+
+        // Predefined parties
+        const predefinedParties = [
+            "Agarwal Hosiery",
+            "Bombay Fashion",
+            "City Point",
+            "Delhi Garments",
+            "Express Clothing",
+            "Fashion Hub",
+            "Galaxy Store",
+            "Hosiery Point",
+            "Indian Wear",
+            "Joy Fashion"
+        ];
 
         // Predefined items
         const predefinedItems = {
@@ -229,6 +313,11 @@
         };
 
         // DOM Elements
+        const partyInput = document.getElementById('partyInput');
+        const partySuggestions = document.getElementById('partySuggestions');
+        const selectedParty = document.getElementById('selectedParty');
+        const scannerContainer = document.getElementById('scannerContainer');
+        const cartContainer = document.getElementById('cartContainer');
         const video = document.getElementById('video');
         const scanModal = document.getElementById('scanModal');
         const scanResult = document.getElementById('scanResult');
@@ -239,6 +328,65 @@
         let currentBarcode = null;
         let isScanning = true;
         let cartArray = [];
+        let selectedPartyName = '';
+
+        // Party input handling
+        partyInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.trim();
+            showPartySuggestions(searchTerm);
+        });
+
+        function showPartySuggestions(searchTerm) {
+            partySuggestions.innerHTML = '';
+            
+            if (!searchTerm) {
+                partySuggestions.style.display = 'none';
+                return;
+            }
+
+            const matches = predefinedParties.filter(party => 
+                party.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            if (matches.length > 0 || searchTerm.length >= 3) {
+                partySuggestions.style.display = 'block';
+                
+                // Add existing matches
+                matches.forEach(party => {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    const matchIndex = party.toLowerCase().indexOf(searchTerm.toLowerCase());
+                    div.innerHTML = party.substring(0, matchIndex) +
+                        `<span class="matched-text">${party.substring(matchIndex, matchIndex + searchTerm.length)}</span>` +
+                        party.substring(matchIndex + searchTerm.length);
+                    
+                    div.addEventListener('click', () => selectParty(party));
+                    partySuggestions.appendChild(div);
+                });
+
+                // Add new party option if no exact match
+                if (!matches.some(party => party.toLowerCase() === searchTerm.toLowerCase()) && searchTerm.length >= 3) {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.textContent = `Add new party: ${searchTerm}`;
+                    div.addEventListener('click', () => selectParty(searchTerm));
+                    partySuggestions.appendChild(div);
+                }
+            } else {
+                partySuggestions.style.display = 'none';
+            }
+        }
+
+        function selectParty(partyName) {
+            selectedPartyName = partyName;
+            partyInput.value = '';
+            partySuggestions.style.display = 'none';
+            selectedParty.textContent = `Selected Party: ${partyName}`;
+            selectedParty.style.display = 'block';
+            scannerContainer.style.display = 'block';
+            cartContainer.style.display = 'block';
+            initializeScanner();
+        }
 
         // Initialize scanner
         async function initializeScanner() {
@@ -336,12 +484,41 @@
             isScanning = true;
         }
 
+        // Save cart to Firebase
+        async function saveCart() {
+            if (cartArray.length === 0) {
+                alert('Please add items to cart before saving');
+                return;
+            }
+
+            try {
+                await db.collection('orders').add({
+                    party: selectedPartyName,
+                    items: cartArray,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Reset cart after successful save
+                cartArray = [];
+                updateCartDisplay();
+                alert('Order saved successfully!');
+            } catch (error) {
+                console.error('Error saving order:', error);
+                alert('Error saving order. Please try again.');
+            }
+        }
+
+        // Close suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!partySuggestions.contains(e.target) && e.target !== partyInput) {
+                partySuggestions.style.display = 'none';
+            }
+        });
+
         // Event Listeners
         document.getElementById('addToCart').addEventListener('click', addToCart);
         document.getElementById('closeModal').addEventListener('click', closeModal);
-
-        // Initialize scanner on page load
-        initializeScanner();
+        document.getElementById('saveCart').addEventListener('click', saveCart);
     </script>
 </body>
 </html>
