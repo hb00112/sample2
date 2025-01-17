@@ -243,6 +243,7 @@
 
         .form-group {
             position: relative;
+            margin: 16px 0;
         }
 
         .form-input {
@@ -252,7 +253,19 @@
             border-radius: 8px;
             font-size: 16px;
         }
-
+        .form-group label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 500;
+            }
+            
+            #editableMrp {
+                width: 100%;
+                padding: 8px;
+                border: 1px solid #e5e7eb;
+                border-radius: 4px;
+                font-size: 16px;
+            }
         .suggestions-list {
             position: absolute;
             top: 100%;
@@ -366,7 +379,13 @@
         <div class="modal-content">
             <h3>Scanned Barcode</h3>
             <div class="scan-result" id="scanResult"></div>
-            <div class="item-details" id="itemDetails"></div>
+            <div class="item-details" id="itemDetails">
+                <!-- Item details will be populated dynamically -->
+            </div>
+            <div class="form-group">
+                <label for="editableMrp">MRP:</label>
+                <input type="number" id="editableMrp" class="form-input" step="0.01">
+            </div>
             <button class="modal-btn primary-btn" id="addToCart">Add to Cart</button>
             <button class="modal-btn secondary-btn" id="closeModal">Scan Again</button>
         </div>
@@ -562,39 +581,33 @@
                     <p><strong>Item:</strong> ${item.item}</p>
                     <p><strong>Color:</strong> ${item.color}</p>
                     <p><strong>Size:</strong> ${item.size}</p>
-                    <p><strong>MRP:</strong> ₹${item.mrp}</p>
                 `;
+                // Set the editable MRP input with the predefined value
+                document.getElementById('editableMrp').value = item.mrp;
             } else {
                 itemDetails.innerHTML = '<p>Item not found in database</p>';
+                document.getElementById('editableMrp').value = '';
             }
 
             scanModal.style.display = 'block';
             statusBar.style.display = 'none';
         }
 
-        // Add to cart
+        // Modified addToCart function
         function addToCart() {
-    const item = predefinedItems[currentBarcode];
-    if (item) {
-        cartArray.push({ ...item, barcode: currentBarcode });
-        updateCartDisplay();
-    }
-    // Close scan modal and clear current barcode
-    closeModal();
-    
-    // Close and clear barcode entry modal
-    barcodeEntryModal.style.display = 'none';
-    barcodeInput.value = '';
-    
-    // Close and clear manual entry modal
-    manualEntryModal.style.display = 'none';
-    itemNameInput.value = '';
-    colorInput.value = '';
-    sizeInput.value = '';
-    qtyInput.value = '1';
-    mrpInput.value = '';
-}
-
+            const item = predefinedItems[currentBarcode];
+            if (item) {
+                // Create a copy of the item and update the MRP with the edited value
+                const modifiedItem = { 
+                    ...item, 
+                    barcode: currentBarcode,
+                    mrp: parseFloat(document.getElementById('editableMrp').value) || item.mrp 
+                };
+                cartArray.push(modifiedItem);
+                updateCartDisplay();
+            }
+            closeModal();
+        }
 function clearAllModalsAndInputs() {
     // Clear and close scan modal
     scanModal.style.display = 'none';
@@ -626,7 +639,7 @@ function clearAllModalsAndInputs() {
                     <p><strong>Color:</strong> ${item.color}</p>
                     <p><strong>Size:</strong> ${item.size}</p>
                     <p><strong>Quantity:</strong> ${item.qty || 1}</p>
-                    <p><strong>MRP:</strong> ₹${item.mrp}</p>
+                    <p><strong>MRP:</strong> ₹${item.mrp.toFixed(2)}</p>
                 </div>
             `).join('');
         }
