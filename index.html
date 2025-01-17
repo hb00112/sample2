@@ -7,8 +7,7 @@
     <title>Barcode Scanner with Party Selection</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-  
+   
     <style>
         * {
             margin: 0;
@@ -385,20 +384,12 @@
             appId: "1:817694176734:web:176bf69333bd7119d3194f"
         };
         
-        async function initializeFirebase() {
-            try {
-                await auth.signInAnonymously();
-                console.log("Anonymous auth successful");
-            } catch (error) {
-                console.error("Error during anonymous authentication:", error);
-                alert("Failed to initialize application. Please refresh and try again.");
-            }
-        }
-
         // Initialize Firebase
         const app = firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        const auth = firebase.auth();
+        
+      
+
 
         // Predefined parties
         const predefinedParties = [
@@ -441,10 +432,7 @@
                 mrp: 849.00
             }
         };
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeFirebase();
-        });
-        
+      
         // DOM Elements
         const partyInput = document.getElementById('partyInput');
         const partySuggestions = document.getElementById('partySuggestions');
@@ -653,14 +641,9 @@ function clearAllModalsAndInputs() {
             isScanning = true;
         }
 // Modified saveCart function to save under temp orders
- async function saveCart() {
+async function saveCart() {
             if (cartArray.length === 0) {
                 alert('Please add items to cart before saving');
-                return;
-            }
-
-            if (!auth.currentUser) {
-                alert('Authentication error. Please refresh the page and try again.');
                 return;
             }
 
@@ -669,43 +652,75 @@ function clearAllModalsAndInputs() {
             loadingStatus.style.display = 'block';
 
             try {
-                // Add retry logic for resilience
-                const maxRetries = 3;
-                let retryCount = 0;
+                // Add timestamp in client-side
+                const timestamp = new Date().toISOString();
                 
-                while (retryCount < maxRetries) {
-                    try {
-                        await db.collection('temp_orders').add({
-                            party: selectedPartyName,
-                            items: cartArray,
-                            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                            status: 'pending',
-                            userId: auth.currentUser.uid
-                        });
-                        
-                        // Success - clear cart and show confirmation
-                        cartArray = [];
-                        updateCartDisplay();
-                        loadingStatus.textContent = 'Order saved successfully!';
-                        setTimeout(() => {
-                            loadingStatus.style.display = 'none';
-                        }, 2000);
-                        return;
-                    } catch (error) {
-                        retryCount++;
-                        if (retryCount === maxRetries) throw error;
-                        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-                    }
-                }
+                // Generate a unique order ID
+                const orderId = 'order_' + timestamp + '_' + Math.random().toString(36).substr(2, 9);
+                
+                await db.collection('temp_orders').doc(orderId).set({
+                    party: selectedPartyName,
+                    items: cartArray,
+                    timestamp: timestamp,
+                    status: 'pending',
+                    order_id: orderId
+                }, { merge: true }); // Use merge option for better reliability
+                
+                // Success - clear cart and show confirmation
+                cartArray = [];
+                updateCartDisplay();
+                loadingStatus.textContent = 'Order saved successfully!';
+                
+                setTimeout(() => {
+                    loadingStatus.style.display = 'none';
+                }, 2000);
+                
             } catch (error) {
                 console.error('Error saving order:', error);
                 loadingStatus.textContent = 'Error saving order. Please try again.';
+                
                 setTimeout(() => {
                     loadingStatus.style.display = 'none';
                 }, 3000);
+                
+                // Store failed order in localStorage as backup
+                try {
+                    const failedOrders = JSON.parse(localStorage.getItem('failedOrders') || '[]');
+                    failedOrders.push({
+                        party: selectedPartyName,
+                        items: cartArray,
+                        timestamp: new Date().toISOString(),
+                        status: 'failed'
+                    });
+                    localStorage.setItem('failedOrders', JSON.stringify(failedOrders));
+                } catch (storageError) {
+                    console.error('Error saving to localStorage:', storageError);
+                }
             }
         }
 
+        // Add function to retry failed orders
+        function retryFailedOrders() {
+            try {
+                const failedOrders = JSON.parse(localStorage.getItem('failedOrders') || '[]');
+                if (failedOrders.length > 0) {
+                    failedOrders.forEach(async (order) => {
+                        try {
+                            await db.collection('temp_orders').add(order);
+                        } catch (error) {
+                            console.error('Error retrying order:', error);
+                        }
+                    });
+                    localStorage.removeItem('failedOrders');
+                }
+            } catch (error) {
+                console.error('Error processing failed orders:', error);
+            }
+        }
+
+        // Add retry attempt when page loads
+        window.addEventListener('online', retryFailedOrders);
+        document.addEventListener('DOMContentLoaded', retryFailedOrders);
 
         // Close suggestions when clicking outside
         document.addEventListener('click', (e) => {
