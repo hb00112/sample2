@@ -7,6 +7,8 @@
     <title>Barcode Scanner with Party Selection</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+  
     <style>
         * {
             margin: 0;
@@ -382,8 +384,21 @@
             messagingSenderId: "817694176734",
             appId: "1:817694176734:web:176bf69333bd7119d3194f"
         };
-        firebase.initializeApp(firebaseConfig);
+        
+        async function initializeFirebase() {
+            try {
+                await auth.signInAnonymously();
+                console.log("Anonymous auth successful");
+            } catch (error) {
+                console.error("Error during anonymous authentication:", error);
+                alert("Failed to initialize application. Please refresh and try again.");
+            }
+        }
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
+        const auth = firebase.auth();
 
         // Predefined parties
         const predefinedParties = [
@@ -426,7 +441,10 @@
                 mrp: 849.00
             }
         };
-
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeFirebase();
+        });
+        
         // DOM Elements
         const partyInput = document.getElementById('partyInput');
         const partySuggestions = document.getElementById('partySuggestions');
@@ -635,33 +653,59 @@ function clearAllModalsAndInputs() {
             isScanning = true;
         }
 // Modified saveCart function to save under temp orders
-async function saveCart() {
-    if (cartArray.length === 0) {
-        alert('Please add items to cart before saving');
-        return;
-    }
+ async function saveCart() {
+            if (cartArray.length === 0) {
+                alert('Please add items to cart before saving');
+                return;
+            }
 
-    try {
-        // Reference to temp_orders collection
-        const tempOrdersRef = db.collection('temp_orders');
-        
-        // Create new order document
-        await tempOrdersRef.add({
-            party: selectedPartyName,
-            items: cartArray,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            status: 'pending' // Optional: Add status field for order tracking
-        });
+            if (!auth.currentUser) {
+                alert('Authentication error. Please refresh the page and try again.');
+                return;
+            }
 
-        // Reset cart after successful save
-        cartArray = [];
-        updateCartDisplay();
-        alert('Order saved successfully!');
-    } catch (error) {
-        console.error('Error saving order:', error);
-        alert('Error saving order. Please try again.');
-    }
-}
+            const loadingStatus = document.getElementById('statusBar');
+            loadingStatus.textContent = 'Saving order...';
+            loadingStatus.style.display = 'block';
+
+            try {
+                // Add retry logic for resilience
+                const maxRetries = 3;
+                let retryCount = 0;
+                
+                while (retryCount < maxRetries) {
+                    try {
+                        await db.collection('temp_orders').add({
+                            party: selectedPartyName,
+                            items: cartArray,
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                            status: 'pending',
+                            userId: auth.currentUser.uid
+                        });
+                        
+                        // Success - clear cart and show confirmation
+                        cartArray = [];
+                        updateCartDisplay();
+                        loadingStatus.textContent = 'Order saved successfully!';
+                        setTimeout(() => {
+                            loadingStatus.style.display = 'none';
+                        }, 2000);
+                        return;
+                    } catch (error) {
+                        retryCount++;
+                        if (retryCount === maxRetries) throw error;
+                        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+                    }
+                }
+            } catch (error) {
+                console.error('Error saving order:', error);
+                loadingStatus.textContent = 'Error saving order. Please try again.';
+                setTimeout(() => {
+                    loadingStatus.style.display = 'none';
+                }, 3000);
+            }
+        }
+
 
         // Close suggestions when clicking outside
         document.addEventListener('click', (e) => {
