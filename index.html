@@ -369,7 +369,7 @@
         </div>
 
         <div class="cart-container" id="cartContainer">
-            <h3>Scanned Items</h3>
+            <h3>Cart Items</h3>
             <div id="cartItems"></div>
             <button class="modal-btn primary-btn" id="saveCart">Save Order</button>
         </div>
@@ -594,20 +594,40 @@
         }
 
         // Modified addToCart function
-        function addToCart() {
-            const item = predefinedItems[currentBarcode];
-            if (item) {
-                // Create a copy of the item and update the MRP with the edited value
-                const modifiedItem = { 
-                    ...item, 
-                    barcode: currentBarcode,
-                    mrp: parseFloat(document.getElementById('editableMrp').value) || item.mrp 
-                };
-                cartArray.push(modifiedItem);
-                updateCartDisplay();
-            }
-            closeModal();
+        // Modified addToCart function to handle quantity combining
+function addToCart() {
+    const item = predefinedItems[currentBarcode];
+    if (item) {
+        const modifiedItem = { 
+            ...item, 
+            barcode: currentBarcode,
+            mrp: parseFloat(document.getElementById('editableMrp').value) || item.mrp,
+            qty: 1 // Default quantity is 1
+        };
+
+        // Check if item already exists in cart
+        const existingItemIndex = cartArray.findIndex(cartItem => 
+            cartItem.barcode && // Only check barcode if it exists
+            cartItem.barcode === modifiedItem.barcode &&
+            cartItem.item === modifiedItem.item &&
+            cartItem.color === modifiedItem.color &&
+            cartItem.size === modifiedItem.size &&
+            cartItem.mrp === modifiedItem.mrp
+        );
+
+        if (existingItemIndex !== -1) {
+            // If item exists, increment quantity
+            cartArray[existingItemIndex].qty = (cartArray[existingItemIndex].qty || 1) + 1;
+        } else {
+            // If item doesn't exist, add new item
+            cartArray.push(modifiedItem);
         }
+        updateCartDisplay();
+    }
+    closeModal();
+}
+
+
 function clearAllModalsAndInputs() {
     // Clear and close scan modal
     scanModal.style.display = 'none';
@@ -632,18 +652,18 @@ function clearAllModalsAndInputs() {
 
         // Update cart display
         function updateCartDisplay() {
-            cartItems.innerHTML = cartArray.map((item, index) => `
-                <div class="cart-item">
-                    ${item.barcode ? `<p><strong>Barcode:</strong> ${item.barcode}</p>` : ''}
-                    <p><strong>Item:</strong> ${item.item}</p>
-                    <p><strong>Color:</strong> ${item.color}</p>
-                    <p><strong>Size:</strong> ${item.size}</p>
-                    <p><strong>Quantity:</strong> ${item.qty || 1}</p>
-                    <p><strong>MRP:</strong> ₹${item.mrp.toFixed(2)}</p>
-                </div>
-            `).join('');
-        }
-
+    cartItems.innerHTML = cartArray.map((item, index) => `
+        <div class="cart-item">
+            ${item.barcode ? `<p><strong>Barcode:</strong> ${item.barcode}</p>` : ''}
+            <p><strong>Item:</strong> ${item.item}</p>
+            <p><strong>Color:</strong> ${item.color}</p>
+            <p><strong>Size:</strong> ${item.size}</p>
+            <p><strong>Quantity:</strong> ${item.qty || 1}</p>
+            <p><strong>MRP:</strong> ₹${item.mrp.toFixed(2)}</p>
+            <p><strong>Total:</strong> ₹${((item.qty || 1) * item.mrp).toFixed(2)}</p>
+        </div>
+    `).join('');
+}
         // Close modal and resume scanning
         function closeModal() {
             scanModal.style.display = 'none';
@@ -860,7 +880,23 @@ async function saveCart() {
         mrp: parseFloat(mrpInput.value) || 0
     };
 
-    cartArray.push(manualItem);
+    // Check if identical item exists
+    const existingItemIndex = cartArray.findIndex(cartItem =>
+        (!cartItem.barcode && !manualItem.barcode) && // Both items are manual entries
+        cartItem.item === manualItem.item &&
+        cartItem.color === manualItem.color &&
+        cartItem.size === manualItem.size &&
+        cartItem.mrp === manualItem.mrp
+    );
+
+    if (existingItemIndex !== -1) {
+        // If item exists, add quantities
+        cartArray[existingItemIndex].qty = (cartArray[existingItemIndex].qty || 1) + manualItem.qty;
+    } else {
+        // If item doesn't exist, add new item
+        cartArray.push(manualItem);
+    }
+    
     updateCartDisplay();
     
     // Clear all inputs and close modal
