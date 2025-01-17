@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -287,103 +288,6 @@
             background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
         }
-        /* New Cart Summary Styles */
-.cart-summary {
-    background: white;
-    padding: 16px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.cart-summary-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-
-.cart-summary-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: #1f2937;
-}
-
-.cart-total {
-    font-size: 16px;
-    color: #2563eb;
-    font-weight: 500;
-}
-
-.cart-items-list {
-    margin-top: 16px;
-}
-
-.cart-item {
-    background: #f9fafb;
-    padding: 16px;
-    border-radius: 8px;
-    margin-bottom: 12px;
-    border: 1px solid #e5e7eb;
-}
-
-.cart-item-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 8px;
-}
-
-.cart-item-name {
-    font-weight: 500;
-    color: #1f2937;
-}
-
-.cart-item-price {
-    color: #2563eb;
-    font-weight: 500;
-}
-
-.cart-item-details {
-    font-size: 14px;
-    color: #6b7280;
-}
-
-.remove-item-btn {
-    background: #ef4444;
-    color: white;
-    border: none;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-    margin-top: 8px;
-}
-
-.cart-actions {
-    margin-top: 20px;
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.cart-btn {
-    flex: 1;
-    padding: 12px;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    cursor: pointer;
-}
-
-.save-order-btn {
-    background: #2563eb;
-    color: white;
-}
-
-.clear-cart-btn {
-    background: #ef4444;
-    color: white;
-}
     </style>
 </head>
 <body>
@@ -451,24 +355,13 @@
             Scanning...
         </div>
 
-       <!-- Add this after the scanner-container div -->
-<div class="cart-summary" id="cartSummary">
-    <div class="cart-summary-header">
-        <h3 class="cart-summary-title">Cart Summary</h3>
-        <div class="cart-total" id="cartTotal">Total: ₹0.00</div>
+        <div class="cart-container" id="cartContainer">
+            <h3>Scanned Items</h3>
+            <div id="cartItems"></div>
+            <button class="modal-btn primary-btn" id="saveCart">Save Order</button>
+        </div>
     </div>
-    <div class="cart-items-list" id="cartItemsList"></div>
-    <div class="cart-actions">
-        <button class="cart-btn save-order-btn" id="saveOrderBtn">Save Order</button>
-        <button class="cart-btn clear-cart-btn" id="clearCartBtn">Clear Cart</button>
-    </div>
-</div>
 
-<!-- Modify the existing cart-container div to this -->
-<div class="cart-container" id="cartContainer">
-    <h3>All Cart Items</h3>
-    <div id="cartItems"></div>
-</div>
     <div class="modal" id="scanModal">
         <div class="modal-content">
             <h3>Scanned Barcode</h3>
@@ -652,32 +545,6 @@
                 statusBar.textContent = 'Camera access denied';
             }
         }
-// Cart related variables
-let tempOrderId = null;
-
-// Initialize temp order ID on page load
-async function initializeTempOrder() {
-    if (!tempOrderId) {
-        tempOrderId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        // Clear any existing temp orders for this session
-        await clearOldTempOrders();
-    }
-}
-
-// Clear old temp orders
-async function clearOldTempOrders() {
-    try {
-        const tempOrders = await db.collection('temp_orders')
-            .where('timestamp', '<', firebase.firestore.Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000)))
-            .get();
-        
-        tempOrders.forEach(async (doc) => {
-            await doc.ref.delete();
-        });
-    } catch (error) {
-        console.error('Error clearing old temp orders:', error);
-    }
-}
 
         // Handle barcode scan
         function handleBarcodeScan(barcode) {
@@ -701,99 +568,29 @@ async function clearOldTempOrders() {
             statusBar.style.display = 'none';
         }
 
-     // Add item to cart
-async function addToCart() {
-    const item = predefinedItems[currentBarcode] || {
-        barcode: currentBarcode,
-        item: itemNameInput.value,
-        color: colorInput.value,
-        size: sizeInput.value,
-        qty: parseInt(qtyInput.value) || 1,
-        mrp: parseFloat(mrpInput.value) || 0
-    };
-
-    try {
-        await initializeTempOrder();
-        
-        // Add to Firebase temp storage
-        await db.collection('temp_orders').doc(tempOrderId).set({
-            party: selectedPartyName,
-            items: firebase.firestore.FieldValue.arrayUnion({
-                ...item,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            }),
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        // Update local display
-        await updateCartDisplay();
-        
-        // Clear forms and close modals
-        clearForms();
-        closeModal();
-        if (barcodeEntryModal.style.display === 'block') {
-            barcodeEntryModal.style.display = 'none';
+        // Add to cart
+        function addToCart() {
+            const item = predefinedItems[currentBarcode];
+            if (item) {
+                cartArray.push({ ...item, barcode: currentBarcode });
+                updateCartDisplay();
+            }
+            closeModal();
         }
-        if (manualEntryModal.style.display === 'block') {
-            manualEntryModal.style.display = 'none';
-        }
-        
-        // Show success message
-        showStatusMessage('Item added to cart');
-    } catch (error) {
-        console.error('Error adding to cart:', error);
-        showStatusMessage('Error adding item to cart', true);
-    }
-}
 
-// Update cart display
-async function updateCartDisplay() {
-    try {
-        const tempOrder = await db.collection('temp_orders').doc(tempOrderId).get();
-        if (!tempOrder.exists) return;
-
-        const data = tempOrder.data();
-        const items = data.items || [];
-
-        // Update cart summary
-        let total = 0;
-        const cartItemsList = document.getElementById('cartItemsList');
-        cartItemsList.innerHTML = items.map((item, index) => {
-            total += (item.mrp * (item.qty || 1));
-            return `
+        // Update cart display
+        function updateCartDisplay() {
+            cartItems.innerHTML = cartArray.map((item, index) => `
                 <div class="cart-item">
-                    <div class="cart-item-header">
-                        <span class="cart-item-name">${item.item}</span>
-                        <span class="cart-item-price">₹${(item.mrp * (item.qty || 1)).toFixed(2)}</span>
-                    </div>
-                    <div class="cart-item-details">
-                        ${item.barcode ? `Barcode: ${item.barcode}<br>` : ''}
-                        Color: ${item.color} | Size: ${item.size} | Qty: ${item.qty || 1}
-                    </div>
-                    <button class="remove-item-btn" onclick="removeCartItem(${index})">Remove</button>
+                    ${item.barcode ? `<p><strong>Barcode:</strong> ${item.barcode}</p>` : ''}
+                    <p><strong>Item:</strong> ${item.item}</p>
+                    <p><strong>Color:</strong> ${item.color}</p>
+                    <p><strong>Size:</strong> ${item.size}</p>
+                    <p><strong>Quantity:</strong> ${item.qty || 1}</p>
+                    <p><strong>MRP:</strong> ₹${item.mrp}</p>
                 </div>
-            `;
-        }).join('');
-
-        document.getElementById('cartTotal').textContent = `Total: ₹${total.toFixed(2)}`;
-        
-        // Update full cart items list
-        document.getElementById('cartItems').innerHTML = items.map(item => `
-            <div class="cart-item">
-                ${item.barcode ? `<p><strong>Barcode:</strong> ${item.barcode}</p>` : ''}
-                <p><strong>Item:</strong> ${item.item}</p>
-                <p><strong>Color:</strong> ${item.color}</p>
-                <p><strong>Size:</strong> ${item.size}</p>
-                <p><strong>Quantity:</strong> ${item.qty || 1}</p>
-                <p><strong>MRP:</strong> ₹${item.mrp}</p>
-            </div>
-        `).join('');
-
-    } catch (error) {
-        console.error('Error updating cart display:', error);
-        showStatusMessage('Error updating cart display', true);
-    }
-}
+            `).join('');
+        }
 
         // Close modal and resume scanning
         function closeModal() {
@@ -826,98 +623,6 @@ async function updateCartDisplay() {
                 alert('Error saving order. Please try again.');
             }
         }
-
-// Remove item from cart
-async function removeCartItem(index) {
-    try {
-        const tempOrder = await db.collection('temp_orders').doc(tempOrderId).get();
-        if (!tempOrder.exists) return;
-
-        const data = tempOrder.data();
-        const items = data.items || [];
-        items.splice(index, 1);
-
-        await db.collection('temp_orders').doc(tempOrderId).update({
-            items: items
-        });
-
-        await updateCartDisplay();
-        showStatusMessage('Item removed from cart');
-    } catch (error) {
-        console.error('Error removing item:', error);
-        showStatusMessage('Error removing item', true);
-    }
-}
-
-// Clear forms
-function clearForms() {
-    barcodeInput.value = '';
-    itemNameInput.value = '';
-    colorInput.value = '';
-    sizeInput.value = '';
-    qtyInput.value = '1';
-    mrpInput.value = '';
-}
-// Save final order
-async function saveOrder() {
-    try {
-        const tempOrder = await db.collection('temp_orders').doc(tempOrderId).get();
-        if (!tempOrder.exists || !tempOrder.data().items?.length) {
-            showStatusMessage('No items in cart', true);
-            return;
-        }
-
-        const orderData = tempOrder.data();
-        
-        // Save to orders collection
-        await db.collection('orders').add({
-            party: orderData.party,
-            items: orderData.items,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            total: orderData.items.reduce((sum, item) => sum + (item.mrp * (item.qty || 1)), 0)
-        });
-
-        // Delete temp order
-        await db.collection('temp_orders').doc(tempOrderId).delete();
-        
-        // Reset local state
-        tempOrderId = null;
-        await initializeTempOrder();
-        await updateCartDisplay();
-        
-        showStatusMessage('Order saved successfully');
-    } catch (error) {
-        console.error('Error saving order:', error);
-        showStatusMessage('Error saving order', true);
-    }
-}
-
-// Clear cart
-async function clearCart() {
-    if (!confirm('Are you sure you want to clear the cart?')) return;
-    
-    try {
-        await db.collection('temp_orders').doc(tempOrderId).delete();
-        tempOrderId = null;
-        await initializeTempOrder();
-        await updateCartDisplay();
-        showStatusMessage('Cart cleared');
-    } catch (error) {
-        console.error('Error clearing cart:', error);
-        showStatusMessage('Error clearing cart', true);
-    }
-}
-
-// Status message helper
-function showStatusMessage(message, isError = false) {
-    const statusBar = document.getElementById('statusBar');
-    statusBar.textContent = message;
-    statusBar.style.background = isError ? '#ef4444' : '#4b5563';
-    statusBar.style.display = 'block';
-    setTimeout(() => {
-        statusBar.style.display = 'none';
-    }, 3000);
-}
 
         // Close suggestions when clicking outside
         document.addEventListener('click', (e) => {
@@ -990,18 +695,6 @@ function showStatusMessage(message, isError = false) {
             barcodeEntryModal.style.display = 'block';
         });
 
-        window.addEventListener('beforeunload', async (e) => {
-    try {
-        const tempOrder = await db.collection('temp_orders').doc(tempOrderId).get();
-        if (tempOrder.exists && tempOrder.data().items?.length) {
-            e.preventDefault();
-            e.returnValue = '';
-        }
-    } catch (error) {
-        console.error('Error checking temp order:', error);
-    }
-});
-
         document.getElementById('submitBarcode').addEventListener('click', () => {
             const barcode = barcodeInput.value.trim();
             if (barcode) {
@@ -1010,12 +703,6 @@ function showStatusMessage(message, isError = false) {
                 barcodeInput.value = '';
             }
         });
-        document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
-document.getElementById('clearCartBtn').addEventListener('click', clearCart);
-
-// Initialize on page load
-window.addEventListener('load', initializeTempOrder);
-
 
         document.getElementById('closeBarcodeModal').addEventListener('click', () => {
             barcodeEntryModal.style.display = 'none';
