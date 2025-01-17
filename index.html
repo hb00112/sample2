@@ -570,13 +570,48 @@
 
         // Add to cart
         function addToCart() {
-            const item = predefinedItems[currentBarcode];
-            if (item) {
-                cartArray.push({ ...item, barcode: currentBarcode });
-                updateCartDisplay();
-            }
-            closeModal();
-        }
+    const item = predefinedItems[currentBarcode];
+    if (item) {
+        cartArray.push({ ...item, barcode: currentBarcode });
+        updateCartDisplay();
+    }
+    // Close scan modal and clear current barcode
+    closeModal();
+    
+    // Close and clear barcode entry modal
+    barcodeEntryModal.style.display = 'none';
+    barcodeInput.value = '';
+    
+    // Close and clear manual entry modal
+    manualEntryModal.style.display = 'none';
+    itemNameInput.value = '';
+    colorInput.value = '';
+    sizeInput.value = '';
+    qtyInput.value = '1';
+    mrpInput.value = '';
+}
+
+function clearAllModalsAndInputs() {
+    // Clear and close scan modal
+    scanModal.style.display = 'none';
+    currentBarcode = null;
+    
+    // Clear and close barcode entry modal
+    barcodeEntryModal.style.display = 'none';
+    barcodeInput.value = '';
+    
+    // Clear and close manual entry modal
+    manualEntryModal.style.display = 'none';
+    itemNameInput.value = '';
+    colorInput.value = '';
+    sizeInput.value = '';
+    qtyInput.value = '1';
+    mrpInput.value = '';
+    
+    // Resume scanning
+    isScanning = true;
+    statusBar.style.display = 'block';
+}
 
         // Update cart display
         function updateCartDisplay() {
@@ -599,30 +634,34 @@
             currentBarcode = null;
             isScanning = true;
         }
+// Modified saveCart function to save under temp orders
+async function saveCart() {
+    if (cartArray.length === 0) {
+        alert('Please add items to cart before saving');
+        return;
+    }
 
-        // Save cart to Firebase
-        async function saveCart() {
-            if (cartArray.length === 0) {
-                alert('Please add items to cart before saving');
-                return;
-            }
+    try {
+        // Reference to temp_orders collection
+        const tempOrdersRef = db.collection('temp_orders');
+        
+        // Create new order document
+        await tempOrdersRef.add({
+            party: selectedPartyName,
+            items: cartArray,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            status: 'pending' // Optional: Add status field for order tracking
+        });
 
-            try {
-                await db.collection('orders').add({
-                    party: selectedPartyName,
-                    items: cartArray,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-
-                // Reset cart after successful save
-                cartArray = [];
-                updateCartDisplay();
-                alert('Order saved successfully!');
-            } catch (error) {
-                console.error('Error saving order:', error);
-                alert('Error saving order. Please try again.');
-            }
-        }
+        // Reset cart after successful save
+        cartArray = [];
+        updateCartDisplay();
+        alert('Order saved successfully!');
+    } catch (error) {
+        console.error('Error saving order:', error);
+        alert('Error saving order. Please try again.');
+    }
+}
 
         // Close suggestions when clicking outside
         document.addEventListener('click', (e) => {
@@ -696,14 +735,13 @@
         });
 
         document.getElementById('submitBarcode').addEventListener('click', () => {
-            const barcode = barcodeInput.value.trim();
-            if (barcode) {
-                handleBarcodeScan(barcode);
-                barcodeEntryModal.style.display = 'none';
-                barcodeInput.value = '';
-            }
-        });
-
+    const barcode = barcodeInput.value.trim();
+    if (barcode) {
+        handleBarcodeScan(barcode);
+        barcodeEntryModal.style.display = 'none';
+        barcodeInput.value = '';
+    }
+});
         document.getElementById('closeBarcodeModal').addEventListener('click', () => {
             barcodeEntryModal.style.display = 'none';
             barcodeInput.value = '';
@@ -715,25 +753,26 @@
         });
 
         document.getElementById('submitManualEntry').addEventListener('click', () => {
-            const manualItem = {
-                item: itemNameInput.value,
-                color: colorInput.value,
-                size: sizeInput.value,
-                qty: parseInt(qtyInput.value) || 1,
-                mrp: parseFloat(mrpInput.value) || 0
-            };
+    const manualItem = {
+        item: itemNameInput.value,
+        color: colorInput.value,
+        size: sizeInput.value,
+        qty: parseInt(qtyInput.value) || 1,
+        mrp: parseFloat(mrpInput.value) || 0
+    };
 
-            cartArray.push(manualItem);
-            updateCartDisplay();
-            manualEntryModal.style.display = 'none';
-            
-            // Reset form
-            itemNameInput.value = '';
-            colorInput.value = '';
-            sizeInput.value = '';
-            qtyInput.value = '1';
-            mrpInput.value = '';
-        });
+    cartArray.push(manualItem);
+    updateCartDisplay();
+    
+    // Clear all inputs and close modal
+    manualEntryModal.style.display = 'none';
+    itemNameInput.value = '';
+    colorInput.value = '';
+    sizeInput.value = '';
+    qtyInput.value = '1';
+    mrpInput.value = '';
+});
+
 
         document.getElementById('closeManualModal').addEventListener('click', () => {
             manualEntryModal.style.display = 'none';
