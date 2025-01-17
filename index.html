@@ -660,7 +660,7 @@ function clearAllModalsAndInputs() {
             <p><strong>Size:</strong> ${item.size}</p>
             <p><strong>Quantity:</strong> ${item.qty || 1}</p>
             <p><strong>MRP:</strong> ₹${item.mrp.toFixed(2)}</p>
-            <p><strong>Total:</strong> ₹${((item.qty || 1) * item.mrp).toFixed(2)}</p>
+            <p><strong>Total MRP Value:</strong> ₹${((item.qty || 1) * item.mrp).toFixed(2)}</p>
         </div>
     `).join('');
 }
