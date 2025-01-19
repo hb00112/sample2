@@ -246,121 +246,216 @@ function initializeScanner() {
 }
 
 // Function to handle barcode processing
-// Function to handle barcode processing
-async function processScannedBarcode(barcode) {
+// Function to standardize barcode format
+// Enhanced barcode validation and processing
+function processScannedBarcode(barcode) {
     try {
-        // Debug logs
-        console.log('Received barcode:', barcode);
-        console.log('Barcode type:', typeof barcode);
-        console.log('Barcode mapping:', barcodeMapping);
-        console.log('Available barcodes:', Object.keys(barcodeMapping));
-
-        // Clean the barcode string
-        const cleanBarcode = barcode.toString().trim();
-        console.log('Cleaned barcode:', cleanBarcode);
-
-        // Check if the barcode exists in our mapping
-        if (!barcodeMapping[cleanBarcode]) {
-            console.log('Barcode not found in mapping:', cleanBarcode);
-            console.log('Expected barcode format:', '8902625553430');
-            errorBeep.play();
-            return;
-        }
-
-        const { itemName, color, size } = barcodeMapping[cleanBarcode];
-        console.log('Found mapping:', { itemName, color, size });
-
-        // Get current order data from Firebase
-        const orderSnapshot = await firebase.database()
-            .ref('billingOrders')
-            .child(currentOrderId)
-            .once('value');
-            
-        const order = orderSnapshot.val();
-        console.log('Retrieved order:', order);
-        
-        if (!order || !order.items) {
-            console.log('Order not found or no items');
-            errorBeep.play();
-            return;
-        }
-
-        // Find the matching item in the order
-        const matchingItem = order.items.find(item => {
-            console.log('Checking item:', item);
-            return item.name === itemName && 
-                   item.colors && 
-                   item.colors[color] && 
-                   item.colors[color][size] !== undefined;
+        // Input validation and logging
+        console.log('Barcode Processing Debug:', {
+            input: barcode,
+            inputType: typeof barcode,
+            inputLength: barcode?.length || 0,
+            barcodeMapping: window.barcodeMapping
         });
 
-        console.log('Matching item found:', matchingItem);
-
-        if (!matchingItem) {
-            console.log('No matching item found in order');
+        // Basic input validation with detailed feedback
+        if (!barcode) {
+            console.error('Invalid barcode input:', {
+                received: barcode,
+                reason: 'Empty or null input'
+            });
             errorBeep.play();
             return;
         }
 
-        // Find the quantity input in the modal
+        // Clean and standardize the barcode
+        const cleanedBarcode = standardizeBarcode(barcode);
+        console.log('Cleaned barcode:', {
+            original: barcode,
+            cleaned: cleanedBarcode
+        });
+
+        // Find matching barcode with fuzzy matching
+        const matchedBarcode = findMatchingBarcode(cleanedBarcode);
+        if (!matchedBarcode) {
+            console.error('No matching barcode found:', {
+                input: cleanedBarcode,
+                availableBarcodes: Object.keys(window.barcodeMapping)
+            });
+            errorBeep.play();
+            return;
+        }
+
+        // Get item data
+        const itemData = window.barcodeMapping[matchedBarcode];
+        console.log('Found matching item:', itemData);
+
+        // Validate current order
+        if (!currentOrderId) {
+            console.error('No active order selected');
+            errorBeep.play();
+            return;
+        }
+
+        // Update quantity input
         const quantityInput = document.querySelector(
-            `.bill-quantity[data-item="${itemName}"][data-color="${color}"][data-size="${size}"]`
+            `.bill-quantity[data-item="${itemData.itemName}"][data-color="${itemData.color}"][data-size="${itemData.size}"]`
         );
 
         if (!quantityInput) {
-            console.log('Quantity input not found for selector:', 
-                `.bill-quantity[data-item="${itemName}"][data-color="${color}"][data-size="${size}"]`);
+            console.error('Quantity input not found:', {
+                item: itemData.itemName,
+                color: itemData.color,
+                size: itemData.size
+            });
             errorBeep.play();
             return;
         }
 
-        const maxQuantity = matchingItem.colors[color][size];
-        const currentQuantity = parseInt(quantityInput.value) || 0;
+        // Get current and max quantities
+        const currentQty = parseInt(quantityInput.value) || 0;
+        const maxQty = parseInt(quantityInput.getAttribute('max')) || 0;
 
-        console.log('Quantities:', {
-            max: maxQuantity,
-            current: currentQuantity
-        });
-
-        if (currentQuantity < maxQuantity) {
-            // Increment the quantity
-            quantityInput.value = currentQuantity + 1;
-            successBeep.play();
-            
-            // Visual feedback
-            quantityInput.style.backgroundColor = '#e8f5e9';
-            setTimeout(() => {
-                quantityInput.style.backgroundColor = '';
-            }, 500);
-        } else {
-            console.log('Maximum quantity reached');
+        // Validate quantity limits
+        if (currentQty >= maxQty) {
+            console.warn('Maximum quantity reached:', {
+                current: currentQty,
+                max: maxQty
+            });
             errorBeep.play();
-            
-            // Visual feedback for max quantity
+            // Visual feedback
             quantityInput.style.backgroundColor = '#ffebee';
-            setTimeout(() => {
-                quantityInput.style.backgroundColor = '';
-            }, 500);
+            setTimeout(() => quantityInput.style.backgroundColor = '', 500);
+            return;
         }
+
+        // Update quantity
+        quantityInput.value = currentQty + 1;
+        successBeep.play();
+
+        // Visual feedback for success
+        quantityInput.style.backgroundColor = '#e8f5e9';
+        setTimeout(() => quantityInput.style.backgroundColor = '', 500);
+
+        console.log('Successfully processed barcode:', {
+            barcode: matchedBarcode,
+            item: itemData,
+            newQuantity: currentQty + 1
+        });
 
     } catch (error) {
         console.error('Error processing barcode:', error);
-        console.error('Error details:', error.message);
         errorBeep.play();
     }
 }
 
-// Make sure barcodeMapping is properly defined
-if (typeof barcodeMapping === 'undefined') {
-    const barcodeMapping = {
-        '8902625553430': {
-            itemName: 'A202',
-            color: 'CHIVIO',
-            size: 'S'
-        }
-    };
+// Improved barcode standardization
+function standardizeBarcode(barcode) {
+    if (!barcode) return '';
+    
+    // Convert to string and clean
+    const cleaned = barcode.toString().trim().replace(/[^0-9]/g, '');
+    console.log('Standardizing barcode:', {
+        original: barcode,
+        cleaned: cleaned
+    });
+    
+    return cleaned;
 }
 
+// Enhanced barcode matching
+function findMatchingBarcode(inputBarcode) {
+    if (!inputBarcode || !window.barcodeMapping) {
+        console.log('Invalid input or missing mapping:', {
+            input: inputBarcode,
+            hasMapping: Boolean(window.barcodeMapping)
+        });
+        return null;
+    }
+
+    // Get available barcodes
+    const availableBarcodes = Object.keys(window.barcodeMapping);
+    console.log('Searching for match:', {
+        input: inputBarcode,
+        available: availableBarcodes
+    });
+
+    // Exact match
+    if (window.barcodeMapping[inputBarcode]) {
+        console.log('Found exact match');
+        return inputBarcode;
+    }
+
+    // Partial match (input is part of valid barcode)
+    if (inputBarcode.length >= 4) {
+        const partialMatch = availableBarcodes.find(validBarcode => 
+            validBarcode.includes(inputBarcode) || 
+            inputBarcode.includes(validBarcode)
+        );
+        
+        if (partialMatch) {
+            console.log('Found partial match:', partialMatch);
+            return partialMatch;
+        }
+    }
+
+    console.log('No match found');
+    return null;
+}
+// Event listener for manual barcode input
+
+
+function setupBarcodeInput() {
+    const input = document.getElementById('barcodeInput');
+    if (input) {
+        input.addEventListener('keyup', async function(e) {
+            if (e.key === 'Enter') {
+                const barcode = this.value.trim();
+                console.log('Manual barcode input:', barcode);
+                this.value = ''; // Clear input
+                await processScannedBarcode(barcode);
+            }
+        });
+    }
+}
+
+
+// Initialize barcode mapping
+function initializeBarcodeMapping() {
+    if (!window.barcodeMapping) {
+        console.log('Initializing barcode mapping...');
+        window.barcodeMapping = {
+            '8902625553430': {
+                itemName: 'A202',
+                color: 'JETBLK',
+                size: 'S'
+            }
+            // Add more mappings as needed
+        };
+    }
+}
+
+// Call initialization when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    initializeBarcodeMapping();
+    testBarcodeMapping();
+    setupBarcodeInput();
+    console.log('Scanner initialized with mappings:', window.barcodeMapping)
+});
+
+// Enhanced test function
+function testBarcodeMapping() {
+    const testBarcode = '8902625553430';
+    const testInput = '2625553430'; // Test with shorter input
+    
+    console.log('Testing barcode mapping...', {
+        mappingExists: Boolean(window.barcodeMapping),
+        originalMapping: window.barcodeMapping,
+        testBarcode: testBarcode,
+        testBarcodeExists: Boolean(window.barcodeMapping?.[testBarcode]),
+        standardizedTestInput: standardizeBarcode(testInput)
+    });
+}
 // Event listener for long press to switch modes
 let pressTimer;
 document.getElementById('scanner-container').addEventListener('mousedown', function() {
@@ -374,6 +469,172 @@ document.getElementById('scanner-container').addEventListener('mouseup', functio
 
 
 // Function to open barcode modal
+
+
+// Clean up when modal is closed
+document.getElementById('barcodeScanModal').addEventListener('hidden.bs.modal', function () {
+    stopScanner();
+    clickCount = 0;
+    if (clickTimer) {
+        clearTimeout(clickTimer);
+    }
+});
+
+
+function createOrderItemRows(items, isModal = false) {
+    if (!items || !Array.isArray(items)) return '';
+    
+    return items.flatMap(item => {
+        return Object.entries(item.colors || {}).flatMap(([color, sizes]) => {
+            return Object.entries(sizes).map(([size, qty]) => {
+                // Create unique identifiers for main and modal inputs
+                const inputPrefix = isModal ? 'modal-' : 'main-';
+                const inputId = `${inputPrefix}${item.name}-${color}-${size}`;
+                
+                return `
+                <tr>
+                    <td>${item.name} (${color})</td>
+                    <td>${size}/${qty}</td>
+                    <td>
+                        <div class="quantity-control">
+                            <button class="btn btn-sm btn-outline-secondary decrease">-</button>
+                            <input type="number" 
+                                   class="form-control form-control-sm mx-2 bill-quantity ${isModal ? 'modal-quantity' : 'main-quantity'}"
+                                   id="${inputId}"
+                                   value="0"
+                                   min="0" 
+                                   max="${qty}"
+                                   data-item="${item.name}" 
+                                   data-color="${color}" 
+                                   data-size="${size}">
+                            <button class="btn btn-sm btn-outline-secondary increase">+</button>
+                        </div>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        });
+    }).join('');
+}
+/* Barcode scanning handler
+document.getElementById('barcodeInput').addEventListener('keyup', async function(e) {
+    if (e.key === 'Enter') {
+        const barcode = this.value.trim();
+        this.value = ''; // Clear input
+        
+        if (!barcodeMapping[barcode]) {
+            errorBeep.play();
+            return;
+        }
+        
+        const { itemName, color, size } = barcodeMapping[barcode];
+        await processScannedItem(itemName, color, size);
+    }
+}); */
+
+// Process scanned item
+async function processScannedBarcode(barcode) {
+    try {
+        console.log('Processing barcode input:', {
+            input: barcode,
+            type: typeof barcode
+        });
+
+        if (!barcode) {
+            console.log('❌ Empty barcode input');
+            errorBeep.play();
+            return;
+        }
+
+        const matchedBarcode = findMatchingBarcode(barcode);
+        
+        if (!matchedBarcode) {
+            console.log('❌ No valid barcode match found');
+            errorBeep.play();
+            return;
+        }
+
+        const itemData = window.barcodeMapping[matchedBarcode];
+        console.log('✅ Found item data:', itemData);
+
+        if (!currentOrderId) {
+            console.error('❌ No current order selected');
+            errorBeep.play();
+            return;
+        }
+
+        // Get order data
+        const orderSnapshot = await firebase.database()
+            .ref('billingOrders')
+            .child(currentOrderId)
+            .once('value');
+            
+        const order = orderSnapshot.val();
+        
+        if (!order || !order.items) {
+            console.log('❌ Order not found or no items');
+            errorBeep.play();
+            return;
+        }
+
+        // Find matching item
+        const matchingItem = order.items.find(item => {
+            return item.name === itemData.itemName && 
+                   item.colors?.[itemData.color]?.[itemData.size] !== undefined;
+        });
+
+        if (!matchingItem) {
+            console.log('❌ No matching item in order:', itemData);
+            errorBeep.play();
+            return;
+        }
+
+        // Find modal quantity input specifically
+        const modalInputId = `modal-${itemData.itemName}-${itemData.color}-${itemData.size}`;
+        const quantityInput = document.getElementById(modalInputId);
+
+        if (!quantityInput) {
+            console.log('❌ Modal quantity input not found');
+            errorBeep.play();
+            return;
+        }
+
+        const maxQuantity = parseInt(matchingItem.colors[itemData.color][itemData.size]);
+        const currentQuantity = parseInt(quantityInput.value) || 0;
+
+        if (currentQuantity >= maxQuantity) {
+            console.log('❌ Maximum quantity reached');
+            errorBeep.play();
+            quantityInput.style.backgroundColor = '#ffebee';
+            setTimeout(() => {
+                quantityInput.style.backgroundColor = '';
+            }, 500);
+            return;
+        }
+
+        // Increment modal quantity
+        quantityInput.value = currentQuantity + 1;
+        successBeep.play();
+        
+        // Visual feedback
+        quantityInput.style.backgroundColor = '#e8f5e9';
+        setTimeout(() => {
+            quantityInput.style.backgroundColor = '';
+        }, 500);
+
+        console.log('✅ Successfully updated modal quantity:', {
+            from: currentQuantity,
+            to: currentQuantity + 1,
+            max: maxQuantity
+        });
+
+    } catch (error) {
+        console.error('Error in processScannedBarcode:', error);
+        errorBeep.play();
+    }
+}
+
+// Function to open barcode modal with independent quantities
 async function openBarcodeModal(orderId) {
     currentOrderId = orderId;
     
@@ -388,7 +649,7 @@ async function openBarcodeModal(orderId) {
         return;
     }
     
-    // Reset the modal content
+    // Reset the modal content with separate quantity tracking
     const modalOrderContent = document.getElementById('modalOrderContent');
     modalOrderContent.innerHTML = `
         <div class="order-header">
@@ -417,106 +678,13 @@ async function openBarcodeModal(orderId) {
     document.getElementById('camera-container').style.display = 'block';
     document.getElementById('scan-input-container').style.display = 'none';
     
-    // Show modal and initialize scanner
     barcodeModal.show();
     startScanner();
-
-    // Setup manual input handler
-    const barcodeInput = document.getElementById('barcodeInput');
-    barcodeInput.value = '';
-    barcodeInput.addEventListener('keyup', async function(e) {
-        if (e.key === 'Enter') {
-            const barcode = this.value.trim();
-            this.value = '';
-            await processScannedBarcode(barcode);
-        }
-    });
-}
-
-// Clean up when modal is closed
-document.getElementById('barcodeScanModal').addEventListener('hidden.bs.modal', function () {
-    stopScanner();
-    clickCount = 0;
-    if (clickTimer) {
-        clearTimeout(clickTimer);
-    }
-});
-
-
-function createOrderItemRows(items, isModal = false) {
-    if (!items || !Array.isArray(items)) return '';
-    
-    return items.flatMap(item => {
-        return Object.entries(item.colors || {}).flatMap(([color, sizes]) => {
-            return Object.entries(sizes).map(([size, qty]) => `
-                <tr>
-                    <td>${item.name} (${color})</td>
-                    <td>${size}/${qty}</td>
-                    <td>
-                        <div class="quantity-control">
-                            <button class="btn btn-sm btn-outline-secondary decrease">-</button>
-                            <input type="number" class="form-control form-control-sm mx-2 bill-quantity" 
-                                   value="${isModal ? '0' : qty}" min="0" max="${qty}" 
-                                   data-item="${item.name}" data-color="${color}" data-size="${size}">
-                            <button class="btn btn-sm btn-outline-secondary increase">+</button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-        });
-    }).join('');
-}
-
-// Barcode scanning handler
-document.getElementById('barcodeInput').addEventListener('keyup', async function(e) {
-    if (e.key === 'Enter') {
-        const barcode = this.value.trim();
-        this.value = ''; // Clear input
-        
-        if (!barcodeMapping[barcode]) {
-            errorBeep.play();
-            return;
-        }
-        
-        const { itemName, color, size } = barcodeMapping[barcode];
-        await processScannedItem(itemName, color, size);
-    }
-});
-
-// Process scanned item
-async function processScannedItem(itemName, color, size) {
-    const orderSnapshot = await firebase.database().ref('billingOrders').child(currentOrderId).once('value');
-    const order = orderSnapshot.val();
-    
-    // Find matching item in order
-    const item = order.items.find(i => i.name === itemName);
-    if (!item || !item.colors[color] || !item.colors[color][size]) {
-        errorBeep.play();
-        return;
-    }
-    
-    // Find quantity input in modal
-    const input = document.querySelector(`.bill-quantity[data-item="${itemName}"][data-color="${color}"][data-size="${size}"]`);
-    if (!input) return;
-    
-    const maxQty = parseInt(item.colors[color][size]);
-    const currentQty = parseInt(input.value);
-    
-    if (currentQty < maxQty) {
-        input.value = currentQty + 1;
-        successBeep.play();
-        
-        // Wait 2 seconds before enabling scanning again
-        await new Promise(resolve => setTimeout(resolve, 2000));
-    } else {
-        errorBeep.play();
-    }
 }
 
 // Handle modal bill button click
 document.querySelector('.modal-bill-btn').addEventListener('click', function() {
-    billOrder(currentOrderId);
-    barcodeModal.hide();
+    billOrder(currentOrderId, true);
 });
 
 // Event listeners for quantity controls in modal
@@ -544,9 +712,10 @@ document.getElementById('billingOrders').addEventListener('click', function(e) {
         }
     } else if (e.target.classList.contains('bill-btn')) {
         const orderId = e.target.getAttribute('data-order-id');
-        billOrder(orderId);
+        billOrder(orderId,false);
     }
 });
+
 // Function to update stock quantities after billing
 // Add this function to stock.js to properly handle stock updates
 // Enhanced billing system functions
@@ -599,14 +768,21 @@ document.addEventListener('DOMContentLoaded', () => {
 // Helper function to normalize order data
 
 // Updated normalizeOrderData function to properly handle billedItems
-async function billOrder(orderId) {
+async function billOrder(orderId, isModal = false) {
     try {
-        const orderContainer = document.querySelector(`.order-container:has([data-order-id="${orderId}"])`);
-        if (!orderContainer) {
+        // Determine which container to look for inputs
+        let container;
+        if (isModal) {
+            container = document.getElementById('modalOrderContent');
+        } else {
+            container = document.querySelector(`.order-container:has([data-order-id="${orderId}"])`);
+        }
+
+        if (!container) {
             throw new Error("Order container not found");
         }
 
-        // Get order details from Firebase first
+        // Get order details from Firebase
         const orderSnapshot = await firebase.database().ref('billingOrders').child(orderId).once('value');
         const originalOrder = orderSnapshot.val();
         if (!originalOrder) {
@@ -617,11 +793,8 @@ async function billOrder(orderId) {
         const billQuantities = {};
         const billedItems = [];
         let hasValidBilledItems = false;
-        
-        // Create a deep copy of original order items to track remaining quantities
         let remainingOrderItems = [];
         
-        // Process each item in the order
         if (originalOrder.items && Array.isArray(originalOrder.items)) {
             remainingOrderItems = originalOrder.items.map(item => {
                 const newItem = {
@@ -633,12 +806,14 @@ async function billOrder(orderId) {
                     Object.entries(item.colors).forEach(([color, sizes]) => {
                         newItem.colors[color] = {};
                         Object.entries(sizes).forEach(([size, maxQty]) => {
-                            // Find corresponding input in the DOM
-                            const input = orderContainer.querySelector(
-                                `.bill-quantity[data-item="${item.name}"][data-color="${color}"][data-size="${size}"]`
-                            );
+                            // Find corresponding input in the DOM, checking for both modal and main inputs
+                            const inputSelector = isModal ? 
+                                `.modal-quantity[data-item="${item.name}"][data-color="${color}"][data-size="${size}"]` :
+                                `.bill-quantity[data-item="${item.name}"][data-color="${color}"][data-size="${size}"]`;
                             
+                            const input = container.querySelector(inputSelector);
                             const billedQty = input ? (parseInt(input.value) || 0) : 0;
+
                             if (billedQty > 0 && billedQty <= maxQty) {
                                 hasValidBilledItems = true;
                                 
@@ -680,15 +855,12 @@ async function billOrder(orderId) {
                     return newItem;
                 }
                 return null;
-            }).filter(item => item !== null); // Remove null items
+            }).filter(item => item !== null);
         }
 
         if (!hasValidBilledItems) {
             throw new Error("Please enter valid billing quantities for at least one item");
         }
-
-        // Start Firebase operations
-        const db = firebase.database();
 
         // Create new sent order object
         const sentOrder = {
@@ -700,6 +872,9 @@ async function billOrder(orderId) {
             status: 'completed'
         };
 
+        // Start Firebase operations
+        const db = firebase.database();
+
         // 1. Update stock quantities
         await updateStockQuantities(billQuantities);
 
@@ -710,14 +885,12 @@ async function billOrder(orderId) {
 
         // 3. Update or remove billing order based on remaining items
         if (remainingOrderItems.length > 0) {
-            // Create updated order with remaining quantities
             const updatedOrder = {
                 ...originalOrder,
                 items: remainingOrderItems
             };
             await db.ref('billingOrders').child(orderId).set(updatedOrder);
         } else {
-            // Remove order if fully billed
             await db.ref('billingOrders').child(orderId).remove();
         }
 
@@ -727,6 +900,15 @@ async function billOrder(orderId) {
             loadBillingOrders(),
             loadSentOrders()
         ]);
+
+        // 5. Close modal if billing from modal
+        if (isModal) {
+            const modalElement = document.getElementById('barcodeScanModal');
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) {
+                modal.hide();
+            }
+        }
 
         // Show success message
         const successMessage = `Order ${sentOrder.orderNumber} ${remainingOrderItems.length > 0 ? 'partially' : 'fully'} billed successfully!`;
