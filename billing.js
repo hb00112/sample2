@@ -6,12 +6,7 @@ const barcodeMapping = {
     }
     // Add more barcode mappings as needed
 };
-const notificationHTML = `
-<div id="scan-notification" class="position-fixed top-50 start-50 translate-middle p-3 rounded text-white" style="z-index: 9999; display: none; background-color: rgba(0, 0, 0, 0.8);">
-    <div class="notification-message"></div>
-</div>`;
 
-document.body.insertAdjacentHTML('afterbegin', notificationHTML);
 
 let scannerMode = 'camera'; // 'camera' or 'manual'
 let clickCount = 0;
@@ -96,15 +91,23 @@ const modalHTML = `
             </div>
             <div class="modal-body">
                 <div id="scanner-container" class="mb-3">
-                    <div id="camera-container" class="position-relative">
-                        <video id="scanner-video" class="w-100" style="max-height: 300px; object-fit: cover;"></video>
-                        <div id="scanning-overlay" class="position-absolute top-50 start-50 translate-middle text-center">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Scanning...</span>
-                            </div>
-                            <div class="mt-2">Scanning...</div>
-                        </div>
-                    </div>
+                    <div id="scanner-container" class="scanner-container">
+    <video id="scanner-video" playsinline></video>
+    <div class="scan-region">
+        <div class="corner corner-top-left"></div>
+        <div class="corner corner-top-right"></div>
+        <div class="corner corner-bottom-left"></div>
+        <div class="corner corner-bottom-right"></div>
+        <div class="scan-line"></div>
+    </div>
+    <div id="scanning-overlay" class="scanner-overlay">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Scanning...</span>
+        </div>
+        <div class="mt-2">Scanning...</div>
+    </div>
+    <div class="mode-switch">Triple tap to switch to manual mode</div>
+</div>
                     <div id="scan-input-container" class="mt-3" style="display: none;">
                         <input type="text" class="form-control" id="barcodeInput" 
                                placeholder="Type barcode here..." autofocus>
@@ -122,9 +125,50 @@ const modalHTML = `
 
 // Add modal to document body
 document.body.insertAdjacentHTML('beforeend', modalHTML);
+// First, add this HTML for the toast container right after your modal HTML
+const toastContainerHTML = `
+<div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1070;">
+  <div id="scannerToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body"></div>
+    </div>
+  </div>
+</div>`;
+
+document.body.insertAdjacentHTML('beforeend', toastContainerHTML);
+
+// Function to show toast message
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('scannerToast');
+    const toastBody = toast.querySelector('.toast-body');
+    
+    // Set background color based on type
+    switch(type) {
+        case 'success':
+            toast.className = 'toast align-items-center text-white bg-success border-0';
+            break;
+        case 'error':
+            toast.className = 'toast align-items-center text-white bg-danger border-0';
+            break;
+        case 'warning':
+            toast.className = 'toast align-items-center text-white bg-warning border-0';
+            break;
+    }
+    
+    toastBody.textContent = message;
+    
+    // Initialize and show the toast
+    const bsToast = new bootstrap.Toast(toast, {
+        animation: true,
+        autohide: true,
+        delay: 1500 // Will disappear after 1.5 seconds
+    });
+    
+    bsToast.show();
+}
 
 // Sound effects
-const successBeep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+c3PSuZicYT6vi76N0O0hwr8vPp5hkSEhqoL/LqZ5yW1JjlrG+qLOSTVVfs8PGpKOMaW1qbI+svK/HqZVhUW6WyM7AoYxwWld4qNDatKaIPzE6bpe4xbOpiWNUY4+xwLWximNdaZexx7mxkHBgWGOKrcTOtJ2MSUlse6XG1LevkGldVmqRtMvGsaGVeGVfa4mru8G8sZ+Pa2BkiqXAy7mqk3VkZIGlwMq/qpuAaGBjhqG8xsC2qZdyZGmCoLvLxbOji25hb4egvMzFsqOQeGt2gpi3wr22rpaGdWlxe5O5ybXIsptqVGmYxL/449u0hlZqwqGMzLqhkXVwgZKuusG3rJyLfnhzaXeYrcXHuaaRbF1wo8bCuq6OX2aYw7+3q5FoZn6bt8a+s6KMdnR8kKW3vLWsno9/fXx8gZienZ6enp6en6CgoKGhoaKioqOjo6SkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpA==');
+const successBeep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+c3PSuZicYT6vi76N0O0hwr8vPp5hkSEhqoL/LqZ5yW1JjlrG+qLOSTVVfs8PGpKOMaW1qbI+svK/HqZVhUW6WyM7AoYxwWld4qNDatKaIPzE6bpe4xbOpiWNUY4+xwLWximNdaZexx7mxkHBgWGOKrcTOtJ2MSUlse6XG1LevkGldVmqRtMvGsaGVeGVfa4mru8G8sZ+Pa2BkiqXAy7mqk3VkZIGlwMq/qpuAaGBjhqG8xsC2qZdyZGmCoLvLxbOji25hb4egvMzFsqOQeGt2gpi3wr22rpaGdWlxe5O5ybXIsptqVGmYxL/449u0hlZqwqGMzLqhkXVwgZKuusG3rJyLfnhzaXeYrcXHuaaRbF1wo8bCuq6OX2aYw7+3q5FoZn6bt8a+s6KMdnR8kKW3vLWsno9/fXx8gZienZ6enp6en6CgoKGhoaKioqOjo6SkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpA==');
 const errorBeep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAAB/f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8=');
 
 // Initialize modal
@@ -164,7 +208,11 @@ async function startScanner() {
 
         const video = document.getElementById('scanner-video');
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment' }
+            video: {
+                facingMode: 'environment',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
         });
         
         videoStream = stream;
@@ -181,8 +229,15 @@ async function startScanner() {
 
             try {
                 const barcodes = await barcodeDetector.detect(video);
+                
+                // Update scanning overlay visibility
+                const scanningOverlay = document.getElementById('scanning-overlay');
+                scanningOverlay.style.display = barcodes.length > 0 ? 'none' : 'block';
+                
                 for (const barcode of barcodes) {
                     await processScannedBarcode(barcode.rawValue);
+                    // Add a brief pause after successful scan
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             } catch (error) {
                 console.error('Scanning error:', error);
@@ -201,7 +256,6 @@ async function startScanner() {
         toggleScannerMode();
     }
 }
-
 // Function to stop the scanner
 function stopScanner() {
     if (videoStream) {
@@ -253,141 +307,103 @@ function initializeScanner() {
 // Function to handle barcode processing
 // Function to standardize barcode format
 // Enhanced barcode validation and processing
-// Add this HTML for notifications at the top of your body tag
-
-
-
-// Function to show notification
-function showNotification(message, type = 'info') {
-    const notification = document.getElementById('scan-notification');
-    const messageElement = notification.querySelector('.notification-message');
-    
-    // Set message
-    messageElement.textContent = message;
-    
-    // Set color based on type
-    switch(type) {
-        case 'success':
-            notification.style.backgroundColor = 'rgba(76, 175, 80, 0.9)';
-            break;
-        case 'error':
-            notification.style.backgroundColor = 'rgba(244, 67, 54, 0.9)';
-            break;
-        default:
-            notification.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-    }
-    
-    // Show notification
-    notification.style.display = 'block';
-    
-    // Hide after 1.5 seconds
-    setTimeout(() => {
-        notification.style.display = 'none';
-    }, 1500);
-}
-
-// Updated processScannedBarcode function
-async function processScannedBarcode(barcode) {
+function processScannedBarcode(barcode) {
     try {
-        console.log('Processing barcode input:', {
+        // Input validation and logging
+        console.log('Barcode Processing Debug:', {
             input: barcode,
-            type: typeof barcode
+            inputType: typeof barcode,
+            inputLength: barcode?.length || 0,
+            barcodeMapping: window.barcodeMapping
         });
 
+        // Basic input validation with detailed feedback
         if (!barcode) {
-            showNotification('Invalid barcode input', 'error');
+            console.error('Invalid barcode input:', {
+                received: barcode,
+                reason: 'Empty or null input'
+            });
             errorBeep.play();
             return;
         }
 
-        const matchedBarcode = findMatchingBarcode(barcode);
-        
-        if (!matchedBarcode) {
-            showNotification('Item not found in database', 'error');
-            errorBeep.play();
-            return;
-        }
-
-        const itemData = window.barcodeMapping[matchedBarcode];
-        console.log('✅ Found item data:', itemData);
-
-        // Show matched item notification
-        showNotification(`Match found: ${itemData.itemName} - ${itemData.color} - ${itemData.size}`, 'success');
-
-        if (!currentOrderId) {
-            showNotification('No active order selected', 'error');
-            errorBeep.play();
-            return;
-        }
-
-        // Get order data
-        const orderSnapshot = await firebase.database()
-            .ref('billingOrders')
-            .child(currentOrderId)
-            .once('value');
-            
-        const order = orderSnapshot.val();
-        
-        if (!order || !order.items) {
-            showNotification('No order found', 'error');
-            errorBeep.play();
-            return;
-        }
-
-        // Find matching item
-        const matchingItem = order.items.find(item => {
-            return item.name === itemData.itemName && 
-                   item.colors?.[itemData.color]?.[itemData.size] !== undefined;
+        // Clean and standardize the barcode
+        const cleanedBarcode = standardizeBarcode(barcode);
+        console.log('Cleaned barcode:', {
+            original: barcode,
+            cleaned: cleanedBarcode
         });
 
-        if (!matchingItem) {
-            showNotification('Item not in current order', 'error');
+        // Find matching barcode with fuzzy matching
+        const matchedBarcode = findMatchingBarcode(cleanedBarcode);
+        if (!matchedBarcode) {
+            console.error('No matching barcode found:', {
+                input: cleanedBarcode,
+                availableBarcodes: Object.keys(window.barcodeMapping)
+            });
             errorBeep.play();
             return;
         }
 
-        // Find modal quantity input specifically
-        const modalInputId = `modal-${itemData.itemName}-${itemData.color}-${itemData.size}`;
-        const quantityInput = document.getElementById(modalInputId);
+        // Get item data
+        const itemData = window.barcodeMapping[matchedBarcode];
+        console.log('Found matching item:', itemData);
+
+        // Validate current order
+        if (!currentOrderId) {
+            console.error('No active order selected');
+            errorBeep.play();
+            return;
+        }
+
+        // Update quantity input
+        const quantityInput = document.querySelector(
+            `.bill-quantity[data-item="${itemData.itemName}"][data-color="${itemData.color}"][data-size="${itemData.size}"]`
+        );
 
         if (!quantityInput) {
-            showNotification('Quantity input not found', 'error');
+            console.error('Quantity input not found:', {
+                item: itemData.itemName,
+                color: itemData.color,
+                size: itemData.size
+            });
             errorBeep.play();
             return;
         }
 
-        const maxQuantity = parseInt(matchingItem.colors[itemData.color][itemData.size]);
-        const currentQuantity = parseInt(quantityInput.value) || 0;
+        // Get current and max quantities
+        const currentQty = parseInt(quantityInput.value) || 0;
+        const maxQty = parseInt(quantityInput.getAttribute('max')) || 0;
 
-        if (currentQuantity >= maxQuantity) {
-            showNotification('Maximum quantity reached', 'error');
+        // Validate quantity limits
+        if (currentQty >= maxQty) {
+            console.warn('Maximum quantity reached:', {
+                current: currentQty,
+                max: maxQty
+            });
             errorBeep.play();
+            // Visual feedback
             quantityInput.style.backgroundColor = '#ffebee';
-            setTimeout(() => {
-                quantityInput.style.backgroundColor = '';
-            }, 500);
+            setTimeout(() => quantityInput.style.backgroundColor = '', 500);
             return;
         }
 
-        // Increment modal quantity
-        quantityInput.value = currentQuantity + 1;
+        // Update quantity
+        quantityInput.value = currentQty + 1;
         successBeep.play();
-        
-        // Visual feedback
-        quantityInput.style.backgroundColor = '#e8f5e9';
-        setTimeout(() => {
-            quantityInput.style.backgroundColor = '';
-        }, 500);
 
-        console.log('✅ Successfully updated modal quantity:', {
-            from: currentQuantity,
-            to: currentQuantity + 1,
-            max: maxQuantity
+        // Visual feedback for success
+        quantityInput.style.backgroundColor = '#e8f5e9';
+        setTimeout(() => quantityInput.style.backgroundColor = '', 500);
+
+        console.log('Successfully processed barcode:', {
+            barcode: matchedBarcode,
+            item: itemData,
+            newQuantity: currentQty + 1
         });
 
     } catch (error) {
-        console.error('Error in processScannedBarcode:', error);
-        showNotification('Error processing barcode', 'error');
+        console.error('Error processing barcode:', error);
         errorBeep.play();
     }
 }
@@ -416,33 +432,16 @@ function findMatchingBarcode(inputBarcode) {
         return null;
     }
 
-    // Get available barcodes
-    const availableBarcodes = Object.keys(window.barcodeMapping);
-    console.log('Searching for match:', {
-        input: inputBarcode,
-        available: availableBarcodes
-    });
-
-    // Exact match
-    if (window.barcodeMapping[inputBarcode]) {
-        console.log('Found exact match');
-        return inputBarcode;
+    // Clean the input barcode
+    const cleanedBarcode = inputBarcode.toString().trim();
+    
+    // Only check for exact match
+    if (window.barcodeMapping[cleanedBarcode]) {
+        console.log('Found exact match:', cleanedBarcode);
+        return cleanedBarcode;
     }
 
-    // Partial match (input is part of valid barcode)
-    if (inputBarcode.length >= 4) {
-        const partialMatch = availableBarcodes.find(validBarcode => 
-            validBarcode.includes(inputBarcode) || 
-            inputBarcode.includes(validBarcode)
-        );
-        
-        if (partialMatch) {
-            console.log('Found partial match:', partialMatch);
-            return partialMatch;
-        }
-    }
-
-    console.log('No match found');
+    console.log('No exact match found for barcode:', cleanedBarcode);
     return null;
 }
 // Event listener for manual barcode input
@@ -567,6 +566,7 @@ document.getElementById('barcodeInput').addEventListener('keyup', async function
 }); */
 
 // Process scanned item
+// Updated processScannedBarcode function
 async function processScannedBarcode(barcode) {
     try {
         console.log('Processing barcode input:', {
@@ -575,7 +575,7 @@ async function processScannedBarcode(barcode) {
         });
 
         if (!barcode) {
-            console.log('❌ Empty barcode input');
+            showToast('Invalid barcode input', 'error');
             errorBeep.play();
             return;
         }
@@ -583,16 +583,15 @@ async function processScannedBarcode(barcode) {
         const matchedBarcode = findMatchingBarcode(barcode);
         
         if (!matchedBarcode) {
-            console.log('❌ No valid barcode match found');
+            showToast('Barcode not found in database', 'error');
             errorBeep.play();
             return;
         }
 
         const itemData = window.barcodeMapping[matchedBarcode];
-        console.log('✅ Found item data:', itemData);
-
+        
         if (!currentOrderId) {
-            console.error('❌ No current order selected');
+            showToast('No order selected', 'error');
             errorBeep.play();
             return;
         }
@@ -606,7 +605,7 @@ async function processScannedBarcode(barcode) {
         const order = orderSnapshot.val();
         
         if (!order || !order.items) {
-            console.log('❌ Order not found or no items');
+            showToast('Order not found', 'error');
             errorBeep.play();
             return;
         }
@@ -618,17 +617,17 @@ async function processScannedBarcode(barcode) {
         });
 
         if (!matchingItem) {
-            console.log('❌ No matching item in order:', itemData);
+            showToast('Invalid item for this order', 'warning');
             errorBeep.play();
             return;
         }
 
-        // Find modal quantity input specifically
+        // Find modal quantity input
         const modalInputId = `modal-${itemData.itemName}-${itemData.color}-${itemData.size}`;
         const quantityInput = document.getElementById(modalInputId);
 
         if (!quantityInput) {
-            console.log('❌ Modal quantity input not found');
+            showToast('System error: Input not found', 'error');
             errorBeep.play();
             return;
         }
@@ -637,7 +636,7 @@ async function processScannedBarcode(barcode) {
         const currentQuantity = parseInt(quantityInput.value) || 0;
 
         if (currentQuantity >= maxQuantity) {
-            console.log('❌ Maximum quantity reached');
+            showToast('Maximum quantity reached', 'warning');
             errorBeep.play();
             quantityInput.style.backgroundColor = '#ffebee';
             setTimeout(() => {
@@ -648,6 +647,7 @@ async function processScannedBarcode(barcode) {
 
         // Increment modal quantity
         quantityInput.value = currentQuantity + 1;
+        showToast(`Product found: ${itemData.itemName}-${itemData.color}-${itemData.size}`, 'success');
         successBeep.play();
         
         // Visual feedback
@@ -656,18 +656,12 @@ async function processScannedBarcode(barcode) {
             quantityInput.style.backgroundColor = '';
         }, 500);
 
-        console.log('✅ Successfully updated modal quantity:', {
-            from: currentQuantity,
-            to: currentQuantity + 1,
-            max: maxQuantity
-        });
-
     } catch (error) {
         console.error('Error in processScannedBarcode:', error);
+        showToast('System error occurred', 'error');
         errorBeep.play();
     }
 }
-
 // Function to open barcode modal with independent quantities
 async function openBarcodeModal(orderId) {
     currentOrderId = orderId;
