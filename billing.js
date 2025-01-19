@@ -6,7 +6,12 @@ const barcodeMapping = {
     }
     // Add more barcode mappings as needed
 };
+const notificationHTML = `
+<div id="scan-notification" class="position-fixed top-50 start-50 translate-middle p-3 rounded text-white" style="z-index: 9999; display: none; background-color: rgba(0, 0, 0, 0.8);">
+    <div class="notification-message"></div>
+</div>`;
 
+document.body.insertAdjacentHTML('afterbegin', notificationHTML);
 
 let scannerMode = 'camera'; // 'camera' or 'manual'
 let clickCount = 0;
@@ -248,103 +253,141 @@ function initializeScanner() {
 // Function to handle barcode processing
 // Function to standardize barcode format
 // Enhanced barcode validation and processing
-function processScannedBarcode(barcode) {
+// Add this HTML for notifications at the top of your body tag
+
+
+
+// Function to show notification
+function showNotification(message, type = 'info') {
+    const notification = document.getElementById('scan-notification');
+    const messageElement = notification.querySelector('.notification-message');
+    
+    // Set message
+    messageElement.textContent = message;
+    
+    // Set color based on type
+    switch(type) {
+        case 'success':
+            notification.style.backgroundColor = 'rgba(76, 175, 80, 0.9)';
+            break;
+        case 'error':
+            notification.style.backgroundColor = 'rgba(244, 67, 54, 0.9)';
+            break;
+        default:
+            notification.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+    }
+    
+    // Show notification
+    notification.style.display = 'block';
+    
+    // Hide after 1.5 seconds
+    setTimeout(() => {
+        notification.style.display = 'none';
+    }, 1500);
+}
+
+// Updated processScannedBarcode function
+async function processScannedBarcode(barcode) {
     try {
-        // Input validation and logging
-        console.log('Barcode Processing Debug:', {
+        console.log('Processing barcode input:', {
             input: barcode,
-            inputType: typeof barcode,
-            inputLength: barcode?.length || 0,
-            barcodeMapping: window.barcodeMapping
+            type: typeof barcode
         });
 
-        // Basic input validation with detailed feedback
         if (!barcode) {
-            console.error('Invalid barcode input:', {
-                received: barcode,
-                reason: 'Empty or null input'
-            });
+            showNotification('Invalid barcode input', 'error');
             errorBeep.play();
             return;
         }
 
-        // Clean and standardize the barcode
-        const cleanedBarcode = standardizeBarcode(barcode);
-        console.log('Cleaned barcode:', {
-            original: barcode,
-            cleaned: cleanedBarcode
+        const matchedBarcode = findMatchingBarcode(barcode);
+        
+        if (!matchedBarcode) {
+            showNotification('Item not found in database', 'error');
+            errorBeep.play();
+            return;
+        }
+
+        const itemData = window.barcodeMapping[matchedBarcode];
+        console.log('✅ Found item data:', itemData);
+
+        // Show matched item notification
+        showNotification(`Match found: ${itemData.itemName} - ${itemData.color} - ${itemData.size}`, 'success');
+
+        if (!currentOrderId) {
+            showNotification('No active order selected', 'error');
+            errorBeep.play();
+            return;
+        }
+
+        // Get order data
+        const orderSnapshot = await firebase.database()
+            .ref('billingOrders')
+            .child(currentOrderId)
+            .once('value');
+            
+        const order = orderSnapshot.val();
+        
+        if (!order || !order.items) {
+            showNotification('No order found', 'error');
+            errorBeep.play();
+            return;
+        }
+
+        // Find matching item
+        const matchingItem = order.items.find(item => {
+            return item.name === itemData.itemName && 
+                   item.colors?.[itemData.color]?.[itemData.size] !== undefined;
         });
 
-        // Find matching barcode with fuzzy matching
-        const matchedBarcode = findMatchingBarcode(cleanedBarcode);
-        if (!matchedBarcode) {
-            console.error('No matching barcode found:', {
-                input: cleanedBarcode,
-                availableBarcodes: Object.keys(window.barcodeMapping)
-            });
+        if (!matchingItem) {
+            showNotification('Item not in current order', 'error');
             errorBeep.play();
             return;
         }
 
-        // Get item data
-        const itemData = window.barcodeMapping[matchedBarcode];
-        console.log('Found matching item:', itemData);
-
-        // Validate current order
-        if (!currentOrderId) {
-            console.error('No active order selected');
-            errorBeep.play();
-            return;
-        }
-
-        // Update quantity input
-        const quantityInput = document.querySelector(
-            `.bill-quantity[data-item="${itemData.itemName}"][data-color="${itemData.color}"][data-size="${itemData.size}"]`
-        );
+        // Find modal quantity input specifically
+        const modalInputId = `modal-${itemData.itemName}-${itemData.color}-${itemData.size}`;
+        const quantityInput = document.getElementById(modalInputId);
 
         if (!quantityInput) {
-            console.error('Quantity input not found:', {
-                item: itemData.itemName,
-                color: itemData.color,
-                size: itemData.size
-            });
+            showNotification('Quantity input not found', 'error');
             errorBeep.play();
             return;
         }
 
-        // Get current and max quantities
-        const currentQty = parseInt(quantityInput.value) || 0;
-        const maxQty = parseInt(quantityInput.getAttribute('max')) || 0;
+        const maxQuantity = parseInt(matchingItem.colors[itemData.color][itemData.size]);
+        const currentQuantity = parseInt(quantityInput.value) || 0;
 
-        // Validate quantity limits
-        if (currentQty >= maxQty) {
-            console.warn('Maximum quantity reached:', {
-                current: currentQty,
-                max: maxQty
-            });
+        if (currentQuantity >= maxQuantity) {
+            showNotification('Maximum quantity reached', 'error');
             errorBeep.play();
-            // Visual feedback
             quantityInput.style.backgroundColor = '#ffebee';
-            setTimeout(() => quantityInput.style.backgroundColor = '', 500);
+            setTimeout(() => {
+                quantityInput.style.backgroundColor = '';
+            }, 500);
             return;
         }
 
-        // Update quantity
-        quantityInput.value = currentQty + 1;
+        // Increment modal quantity
+        quantityInput.value = currentQuantity + 1;
         successBeep.play();
-
-        // Visual feedback for success
+        
+        // Visual feedback
         quantityInput.style.backgroundColor = '#e8f5e9';
-        setTimeout(() => quantityInput.style.backgroundColor = '', 500);
+        setTimeout(() => {
+            quantityInput.style.backgroundColor = '';
+        }, 500);
 
-        console.log('Successfully processed barcode:', {
-            barcode: matchedBarcode,
-            item: itemData,
-            newQuantity: currentQty + 1
+        console.log('✅ Successfully updated modal quantity:', {
+            from: currentQuantity,
+            to: currentQuantity + 1,
+            max: maxQuantity
         });
 
     } catch (error) {
-        console.error('Error processing barcode:', error);
+        console.error('Error in processScannedBarcode:', error);
+        showNotification('Error processing barcode', 'error');
         errorBeep.play();
     }
 }
