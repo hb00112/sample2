@@ -91,23 +91,15 @@ const modalHTML = `
             </div>
             <div class="modal-body">
                 <div id="scanner-container" class="mb-3">
-                    <div id="scanner-container" class="scanner-container">
-    <video id="scanner-video" playsinline></video>
-    <div class="scan-region">
-        <div class="corner corner-top-left"></div>
-        <div class="corner corner-top-right"></div>
-        <div class="corner corner-bottom-left"></div>
-        <div class="corner corner-bottom-right"></div>
-        <div class="scan-line"></div>
-    </div>
-    <div id="scanning-overlay" class="scanner-overlay">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Scanning...</span>
-        </div>
-        <div class="mt-2">Scanning...</div>
-    </div>
-    <div class="mode-switch">Triple tap to switch to manual mode</div>
-</div>
+                    <div id="camera-container" class="position-relative">
+                        <video id="scanner-video" class="w-100" style="max-height: 300px; object-fit: cover;"></video>
+                        <div id="scanning-overlay" class="position-absolute top-50 start-50 translate-middle text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Scanning...</span>
+                            </div>
+                            <div class="mt-2">Scanning...</div>
+                        </div>
+                    </div>
                     <div id="scan-input-container" class="mt-3" style="display: none;">
                         <input type="text" class="form-control" id="barcodeInput" 
                                placeholder="Type barcode here..." autofocus>
@@ -208,11 +200,7 @@ async function startScanner() {
 
         const video = document.getElementById('scanner-video');
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: 'environment',
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            }
+            video: { facingMode: 'environment' }
         });
         
         videoStream = stream;
@@ -229,15 +217,8 @@ async function startScanner() {
 
             try {
                 const barcodes = await barcodeDetector.detect(video);
-                
-                // Update scanning overlay visibility
-                const scanningOverlay = document.getElementById('scanning-overlay');
-                scanningOverlay.style.display = barcodes.length > 0 ? 'none' : 'block';
-                
                 for (const barcode of barcodes) {
                     await processScannedBarcode(barcode.rawValue);
-                    // Add a brief pause after successful scan
-                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             } catch (error) {
                 console.error('Scanning error:', error);
@@ -256,6 +237,7 @@ async function startScanner() {
         toggleScannerMode();
     }
 }
+
 // Function to stop the scanner
 function stopScanner() {
     if (videoStream) {
