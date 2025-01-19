@@ -245,47 +245,83 @@ function initializeScanner() {
     });
 }
 
+// Function to handle barcode processing
 async function processScannedBarcode(barcode) {
-    const orderSnapshot = await firebase.database().ref('billingOrders')
-        .child(currentOrderId)
-        .once('value');
-    const order = orderSnapshot.val();
-    
-    if (!order || !order.items) {
-        errorBeep.play();
-        return;
-    }
+    try {
+        // First check if the barcode exists in our mapping
+        if (!barcodeMapping[barcode]) {
+            console.log('Barcode not found in mapping');
+            errorBeep.play();
+            return;
+        }
 
-    // Find matching item in order items
-    const matchingItem = order.items.find(item => {
-        return item.name === barcodeMapping[barcode]?.itemName &&
-               item.colors[barcodeMapping[barcode]?.color]?.[barcodeMapping[barcode]?.size] !== undefined;
-    });
+        const { itemName, color, size } = barcodeMapping[barcode];
 
-    if (!matchingItem) {
-        errorBeep.play();
-        return;
-    }
+        // Get current order data from Firebase
+        const orderSnapshot = await firebase.database()
+            .ref('billingOrders')
+            .child(currentOrderId)
+            .once('value');
+            
+        const order = orderSnapshot.val();
+        
+        if (!order || !order.items) {
+            console.log('Order not found or no items');
+            errorBeep.play();
+            return;
+        }
 
-    const { itemName, color, size } = barcodeMapping[barcode];
-    
-    // Find quantity input in modal
-    const input = document.querySelector(
-        `.bill-quantity[data-item="${itemName}"][data-color="${color}"][data-size="${size}"]`
-    );
+        // Find the matching item in the order
+        const matchingItem = order.items.find(item => 
+            item.name === itemName && 
+            item.colors && 
+            item.colors[color] && 
+            item.colors[color][size] !== undefined
+        );
 
-    if (!input) {
-        errorBeep.play();
-        return;
-    }
+        if (!matchingItem) {
+            console.log('No matching item found in order');
+            errorBeep.play();
+            return;
+        }
 
-    const maxQty = parseInt(matchingItem.colors[color][size]);
-    const currentQty = parseInt(input.value);
+        // Find the quantity input in the modal
+        const quantityInput = document.querySelector(
+            `.bill-quantity[data-item="${itemName}"][data-color="${color}"][data-size="${size}"]`
+        );
 
-    if (currentQty < maxQty) {
-        input.value = currentQty + 1;
-        successBeep.play();
-    } else {
+        if (!quantityInput) {
+            console.log('Quantity input element not found');
+            errorBeep.play();
+            return;
+        }
+
+        const maxQuantity = matchingItem.colors[color][size];
+        const currentQuantity = parseInt(quantityInput.value) || 0;
+
+        if (currentQuantity < maxQuantity) {
+            // Increment the quantity
+            quantityInput.value = currentQuantity + 1;
+            successBeep.play();
+            
+            // Optional: Add visual feedback
+            quantityInput.style.backgroundColor = '#e8f5e9';
+            setTimeout(() => {
+                quantityInput.style.backgroundColor = '';
+            }, 500);
+        } else {
+            console.log('Maximum quantity reached');
+            errorBeep.play();
+            
+            // Optional: Add visual feedback for max quantity
+            quantityInput.style.backgroundColor = '#ffebee';
+            setTimeout(() => {
+                quantityInput.style.backgroundColor = '';
+            }, 500);
+        }
+
+    } catch (error) {
+        console.error('Error processing barcode:', error);
         errorBeep.play();
     }
 }
