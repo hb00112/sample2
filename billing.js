@@ -91,6 +91,7 @@ const modalHTML = `
             </div>
             <div class="modal-body">
                 <div id="scanner-container" class="mb-3">
+                    <!-- Scanner containers -->
                     <div id="camera-container" class="position-relative">
                         <video id="scanner-video" class="w-100" style="max-height: 300px; object-fit: cover;"></video>
                         <div id="scanning-overlay" class="position-absolute top-50 start-50 translate-middle text-center">
@@ -101,10 +102,10 @@ const modalHTML = `
                         </div>
                     </div>
                     <div id="scan-input-container" class="mt-3" style="display: none;">
-                        <input type="text" class="form-control" id="barcodeInput" 
-                               placeholder="Type barcode here..." autofocus>
+                        <input type="text" class="form-control" id="barcodeInput" placeholder="Type barcode here..." autofocus>
                     </div>
                 </div>
+                <!-- This is the container that needs to exist -->
                 <div id="modalOrderContent"></div>
             </div>
             <div class="modal-footer">
@@ -703,14 +704,20 @@ async function processScannedBarcode(barcode) {
 }
 // Function to open barcode modal with independent quantities
 async function openBarcodeModal(orderId) {
-    if (!orderId) {
-        console.error('No order ID provided');
-        return;
-    }
-
-    currentOrderId = orderId;
-    
     try {
+        if (!orderId) {
+            throw new Error('No order ID provided');
+        }
+
+        // Store current order ID
+        currentOrderId = orderId;
+
+        // Get modal element
+        const modalElement = document.getElementById('barcodeScanModal');
+        if (!modalElement) {
+            throw new Error('Modal element not found');
+        }
+
         // Get order data
         const orderSnapshot = await firebase.database()
             .ref('billingOrders')
@@ -720,28 +727,91 @@ async function openBarcodeModal(orderId) {
         const order = orderSnapshot.val();
         
         if (!order) {
-            throw new Error('Order not found');
+            throw new Error('Order not found in database');
         }
-        
-        // Update modal content
+
+        // Update modal content with order data
         updateModalContent(order);
-        
-        // Reset scanner mode
+
+        // Reset scanner mode and show appropriate containers
         scannerMode = 'camera';
         
-        // Show/hide appropriate containers
         const cameraContainer = document.getElementById('camera-container');
         const scanInputContainer = document.getElementById('scan-input-container');
         
-        if (cameraContainer) cameraContainer.style.display = 'block';
-        if (scanInputContainer) scanInputContainer.style.display = 'none';
-        
+        if (!cameraContainer || !scanInputContainer) {
+            throw new Error('Scanner containers not found');
+        }
+
+        cameraContainer.style.display = 'block';
+        scanInputContainer.style.display = 'none';
+
+        // Show modal
+        const barcodeModal = new bootstrap.Modal(modalElement);
+        barcodeModal.show();
+
         // Start scanner
         await startScanner();
         
+        console.log('Modal opened successfully for order:', orderId);
+
     } catch (error) {
         console.error('Error opening modal:', error);
-        alert('Error loading order data. Please try again.');
+        
+        // Show user-friendly error message
+        const errorMessage = error.message === 'Order not found in database' 
+            ? 'Order not found. Please refresh and try again.'
+            : 'Error opening scanner. Please try again.';
+            
+        alert(errorMessage);
+        
+        // Clean up if needed
+        stopScanner();
+    }
+}
+
+function updateModalContent(order) {
+    try {
+        // Get modal content container
+        const modalOrderContent = document.getElementById('modalOrderContent');
+        if (!modalOrderContent) {
+            throw new Error('Modal content container not found');
+        }
+
+        // Create the content HTML
+        const contentHTML = `
+            <div class="order-header">
+                <h5>Order No: ${order.orderNumber || 'N/A'}</h5>
+                <p>Party Name: ${order.partyName || 'N/A'}</p>
+                <p>Date: ${order.dateTime || new Date().toLocaleDateString()}</p>
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Item Name</th>
+                            <th>Order (Size/Qty)</th>
+                            <th>Bill</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${createOrderItemRows(order.items, true)}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        // Update modal content
+        modalOrderContent.innerHTML = contentHTML;
+
+        // Re-initialize any event listeners or components inside the modal
+        setupQuantityInputListeners();
+
+        console.log('Modal content updated successfully');
+
+    } catch (error) {
+        console.error('Error updating modal content:', error);
+        throw new Error(`Failed to update modal content: ${error.message}`);
     }
 }
 
