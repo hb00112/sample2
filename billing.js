@@ -246,16 +246,29 @@ function initializeScanner() {
 }
 
 // Function to handle barcode processing
+// Function to handle barcode processing
 async function processScannedBarcode(barcode) {
     try {
-        // First check if the barcode exists in our mapping
-        if (!barcodeMapping[barcode]) {
-            console.log('Barcode not found in mapping');
+        // Debug logs
+        console.log('Received barcode:', barcode);
+        console.log('Barcode type:', typeof barcode);
+        console.log('Barcode mapping:', barcodeMapping);
+        console.log('Available barcodes:', Object.keys(barcodeMapping));
+
+        // Clean the barcode string
+        const cleanBarcode = barcode.toString().trim();
+        console.log('Cleaned barcode:', cleanBarcode);
+
+        // Check if the barcode exists in our mapping
+        if (!barcodeMapping[cleanBarcode]) {
+            console.log('Barcode not found in mapping:', cleanBarcode);
+            console.log('Expected barcode format:', '8902625553430');
             errorBeep.play();
             return;
         }
 
-        const { itemName, color, size } = barcodeMapping[barcode];
+        const { itemName, color, size } = barcodeMapping[cleanBarcode];
+        console.log('Found mapping:', { itemName, color, size });
 
         // Get current order data from Firebase
         const orderSnapshot = await firebase.database()
@@ -264,6 +277,7 @@ async function processScannedBarcode(barcode) {
             .once('value');
             
         const order = orderSnapshot.val();
+        console.log('Retrieved order:', order);
         
         if (!order || !order.items) {
             console.log('Order not found or no items');
@@ -272,12 +286,15 @@ async function processScannedBarcode(barcode) {
         }
 
         // Find the matching item in the order
-        const matchingItem = order.items.find(item => 
-            item.name === itemName && 
-            item.colors && 
-            item.colors[color] && 
-            item.colors[color][size] !== undefined
-        );
+        const matchingItem = order.items.find(item => {
+            console.log('Checking item:', item);
+            return item.name === itemName && 
+                   item.colors && 
+                   item.colors[color] && 
+                   item.colors[color][size] !== undefined;
+        });
+
+        console.log('Matching item found:', matchingItem);
 
         if (!matchingItem) {
             console.log('No matching item found in order');
@@ -291,7 +308,8 @@ async function processScannedBarcode(barcode) {
         );
 
         if (!quantityInput) {
-            console.log('Quantity input element not found');
+            console.log('Quantity input not found for selector:', 
+                `.bill-quantity[data-item="${itemName}"][data-color="${color}"][data-size="${size}"]`);
             errorBeep.play();
             return;
         }
@@ -299,12 +317,17 @@ async function processScannedBarcode(barcode) {
         const maxQuantity = matchingItem.colors[color][size];
         const currentQuantity = parseInt(quantityInput.value) || 0;
 
+        console.log('Quantities:', {
+            max: maxQuantity,
+            current: currentQuantity
+        });
+
         if (currentQuantity < maxQuantity) {
             // Increment the quantity
             quantityInput.value = currentQuantity + 1;
             successBeep.play();
             
-            // Optional: Add visual feedback
+            // Visual feedback
             quantityInput.style.backgroundColor = '#e8f5e9';
             setTimeout(() => {
                 quantityInput.style.backgroundColor = '';
@@ -313,7 +336,7 @@ async function processScannedBarcode(barcode) {
             console.log('Maximum quantity reached');
             errorBeep.play();
             
-            // Optional: Add visual feedback for max quantity
+            // Visual feedback for max quantity
             quantityInput.style.backgroundColor = '#ffebee';
             setTimeout(() => {
                 quantityInput.style.backgroundColor = '';
@@ -322,8 +345,20 @@ async function processScannedBarcode(barcode) {
 
     } catch (error) {
         console.error('Error processing barcode:', error);
+        console.error('Error details:', error.message);
         errorBeep.play();
     }
+}
+
+// Make sure barcodeMapping is properly defined
+if (typeof barcodeMapping === 'undefined') {
+    const barcodeMapping = {
+        '8902625553430': {
+            itemName: 'A202',
+            color: 'CHIVIO',
+            size: 'S'
+        }
+    };
 }
 
 // Event listener for long press to switch modes
