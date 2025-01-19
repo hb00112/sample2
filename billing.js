@@ -731,7 +731,7 @@ async function openBarcodeModal(orderId) {
         }
 
         // Update modal content with order data
-        updateModalContent(order);
+        updatemodalcontent2(order);
 
         // Reset scanner mode and show appropriate containers
         scannerMode = 'camera';
@@ -770,7 +770,7 @@ async function openBarcodeModal(orderId) {
     }
 }
 
-function updateModalContent(order) {
+function updatemodalcontent2(order) {
     try {
         // Get modal content container
         const modalOrderContent = document.getElementById('modalOrderContent');
