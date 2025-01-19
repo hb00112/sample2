@@ -91,7 +91,6 @@ const modalHTML = `
             </div>
             <div class="modal-body">
                 <div id="scanner-container" class="mb-3">
-                    <!-- Scanner containers -->
                     <div id="camera-container" class="position-relative">
                         <video id="scanner-video" class="w-100" style="max-height: 300px; object-fit: cover;"></video>
                         <div id="scanning-overlay" class="position-absolute top-50 start-50 translate-middle text-center">
@@ -102,10 +101,10 @@ const modalHTML = `
                         </div>
                     </div>
                     <div id="scan-input-container" class="mt-3" style="display: none;">
-                        <input type="text" class="form-control" id="barcodeInput" placeholder="Type barcode here..." autofocus>
+                        <input type="text" class="form-control" id="barcodeInput" 
+                               placeholder="Type barcode here..." autofocus>
                     </div>
                 </div>
-                <!-- This is the container that needs to exist -->
                 <div id="modalOrderContent"></div>
             </div>
             <div class="modal-footer">
@@ -161,7 +160,7 @@ function showToast(message, type = 'success') {
 }
 
 // Sound effects
-const successBeep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+c3PSuZicYT6vi76N0O0hwr8vPp5hkSEhqoL/LqZ5yW1JjlrG+qLOSTVVfs8PGpKOMaW1qbI+svK/HqZVhUW6WyM7AoYxwWld4qNDatKaIPzE6bpe4xbOpiWNUY4+xwLWximNdaZexx7mxkHBgWGOKrcTOtJ2MSUlse6XG1LevkGldVmqRtMvGsaGVeGVfa4mru8G8sZ+Pa2BkiqXAy7mqk3VkZIGlwMq/qpuAaGBjhqG8xsC2qZdyZGmCoLvLxbOji25hb4egvMzFsqOQeGt2gpi3wr22rpaGdWlxe5O5ybXIsptqVGmYxL/449u0hlZqwqGMzLqhkXVwgZKuusG3rJyLfnhzaXeYrcXHuaaRbF1wo8bCuq6OX2aYw7+3q5FoZn6bt8a+s6KMdnR8kKW3vLWsno9/fXx8gZienZ6enp6en6CgoKGhoaKioqOjo6SkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpA==');
+const successBeep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+c3PSuZicYT6vi76N0O0hwr8vPp5hkSEhqoL/LqZ5yW1JjlrG+qLOSTVVfs8PGpKOMaW1qbI+svK/HqZVhUW6WyM7AoYxwWld4qNDatKaIPzE6bpe4xbOpiWNUY4+xwLWximNdaZexx7mxkHBgWGOKrcTOtJ2MSUlse6XG1LevkGldVmqRtMvGsaGVeGVfa4mru8G8sZ+Pa2BkiqXAy7mqk3VkZIGlwMq/qpuAaGBjhqG8xsC2qZdyZGmCoLvLxbOji25hb4egvMzFsqOQeGt2gpi3wr22rpaGdWlxe5O5ybXIsptqVGmYxL/449u0hlZqwqGMzLqhkXVwgZKuusG3rJyLfnhzaXeYrcXHuaaRbF1wo8bCuq6OX2aYw7+3q5FoZn6bt8a+s6KMdnR8kKW3vLWsno9/fXx8gZienZ6enp6en6CgoKGhoaKioqOjo6SkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpA==');
 const errorBeep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAAB/f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl9gYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8=');
 
 // Initialize modal
@@ -169,44 +168,10 @@ const barcodeModal = new bootstrap.Modal(document.getElementById('barcodeScanMod
 let currentOrderId = null;
 
 // Event listener for barcode scan button
-document.addEventListener('click', async function(e) {
-    const scanButton = e.target.closest('.barcode-scan-btn');
-    if (!scanButton) return;
-    
-    try {
-        e.preventDefault(); // Prevent any default behavior
-        
-        // Get order ID more reliably
-        const orderId = scanButton.dataset.orderId;
-        if (!orderId) {
-            console.error('No order ID found on scan button');
-            return;
-        }
-
-        // Check if modal element exists
-        const modalElement = document.getElementById('barcodeScanModal');
-        if (!modalElement) {
-            console.error('Modal element not found');
-            return;
-        }
-
-        // Initialize modal if needed
-        let barcodeModal = bootstrap.Modal.getInstance(modalElement);
-        if (!barcodeModal) {
-            barcodeModal = new bootstrap.Modal(modalElement, {
-                backdrop: 'static',
-                keyboard: false
-            });
-        }
-
-        // Open modal and initialize scanner
-        await openBarcodeModal(orderId);
-        
-        console.log('Modal opened successfully for order:', orderId);
-        
-    } catch (error) {
-        console.error('Error opening scanner modal:', error);
-        alert('Unable to open scanner. Please try again.');
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.barcode-scan-btn')) {
+        const orderId = e.target.closest('.barcode-scan-btn').getAttribute('data-order-id');
+        openBarcodeModal(orderId);
     }
 });
 
@@ -226,76 +191,53 @@ function toggleScannerMode() {
 }
 async function startScanner() {
     try {
-        // Check for mobile device
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        
-        // Get video element
-        const video = document.getElementById('scanner-video');
-        if (!video) {
-            throw new Error('Video element not found');
+        // Check if BarcodeDetector is available
+        if (!('BarcodeDetector' in window)) {
+            alert('Barcode Scanner not supported by this browser. Switching to manual mode.');
+            toggleScannerMode();
+            return;
         }
 
-        // Configure constraints for better mobile compatibility
-        const constraints = {
-            video: {
-                facingMode: isMobile ? 'environment' : 'user',
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                aspectRatio: { ideal: 1.7777777778 }
-            }
-        };
-
-        // Request camera access
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        const video = document.getElementById('scanner-video');
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
         
-        // Set up video stream
-        video.srcObject = stream;
         videoStream = stream;
-        
-        // Wait for video to be ready
-        await new Promise((resolve) => {
-            video.onloadedmetadata = () => {
-                video.play().then(resolve);
-            };
+        video.srcObject = stream;
+        await video.play();
+
+        const barcodeDetector = new BarcodeDetector({
+            formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e']
         });
 
-        // Initialize barcode detection if available
-        if ('BarcodeDetector' in window) {
-            const barcodeDetector = new BarcodeDetector({
-                formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e']
-            });
+        // Continuous scanning loop
+        async function scanFrame() {
+            if (scannerMode !== 'camera') return;
 
-            // Start scanning loop
-            async function scanFrame() {
-                if (scannerMode !== 'camera') return;
-
-                try {
-                    const barcodes = await barcodeDetector.detect(video);
-                    for (const barcode of barcodes) {
-                        await processScannedBarcode(barcode.rawValue);
-                    }
-                    
-                    if (scannerMode === 'camera') {
-                        requestAnimationFrame(scanFrame);
-                    }
-                } catch (error) {
-                    console.error('Scanning error:', error);
+            try {
+                const barcodes = await barcodeDetector.detect(video);
+                for (const barcode of barcodes) {
+                    await processScannedBarcode(barcode.rawValue);
                 }
+            } catch (error) {
+                console.error('Scanning error:', error);
             }
 
-            scanFrame();
-        } else {
-            // Fallback for browsers without BarcodeDetector
-            console.warn('BarcodeDetector not supported, switching to manual mode');
-            toggleScannerMode();
+            if (scannerMode === 'camera') {
+                requestAnimationFrame(scanFrame);
+            }
         }
 
+        scanFrame();
+
     } catch (error) {
-        console.error('Error starting scanner:', error);
-        alert('Unable to access camera. Please check camera permissions.');
-        toggleScannerMode(); // Switch to manual mode
+        console.error('Scanner initialization error:', error);
+        alert('Unable to access camera. Switching to manual mode.');
+        toggleScannerMode();
     }
 }
+
 // Function to stop the scanner
 function stopScanner() {
     if (videoStream) {
@@ -704,115 +646,50 @@ async function processScannedBarcode(barcode) {
 }
 // Function to open barcode modal with independent quantities
 async function openBarcodeModal(orderId) {
-    try {
-        if (!orderId) {
-            throw new Error('No order ID provided');
-        }
-
-        // Store current order ID
-        currentOrderId = orderId;
-
-        // Get modal element
-        const modalElement = document.getElementById('barcodeScanModal');
-        if (!modalElement) {
-            throw new Error('Modal element not found');
-        }
-
-        // Get order data
-        const orderSnapshot = await firebase.database()
-            .ref('billingOrders')
-            .child(orderId)
-            .once('value');
-            
-        const order = orderSnapshot.val();
-        
-        if (!order) {
-            throw new Error('Order not found in database');
-        }
-
-        // Update modal content with order data
-        updatemodalcontent2(order);
-
-        // Reset scanner mode and show appropriate containers
-        scannerMode = 'camera';
-        
-        const cameraContainer = document.getElementById('camera-container');
-        const scanInputContainer = document.getElementById('scan-input-container');
-        
-        if (!cameraContainer || !scanInputContainer) {
-            throw new Error('Scanner containers not found');
-        }
-
-        cameraContainer.style.display = 'block';
-        scanInputContainer.style.display = 'none';
-
-        // Show modal
-        const barcodeModal = new bootstrap.Modal(modalElement);
-        barcodeModal.show();
-
-        // Start scanner
-        await startScanner();
-        
-        console.log('Modal opened successfully for order:', orderId);
-
-    } catch (error) {
-        console.error('Error opening modal:', error);
-        
-        // Show user-friendly error message
-        const errorMessage = error.message === 'Order not found in database' 
-            ? 'Order not found. Please refresh and try again.'
-            : 'Error opening scanner. Please try again.';
-            
-        alert(errorMessage);
-        
-        // Clean up if needed
-        stopScanner();
+    currentOrderId = orderId;
+    
+    // Get order data
+    const orderSnapshot = await firebase.database().ref('billingOrders')
+        .child(orderId)
+        .once('value');
+    const order = orderSnapshot.val();
+    
+    if (!order) {
+        alert('Order not found');
+        return;
     }
-}
+    
+    // Reset the modal content with separate quantity tracking
+    const modalOrderContent = document.getElementById('modalOrderContent');
+    modalOrderContent.innerHTML = `
+        <div class="order-header">
+            <h5>Order No: ${order.orderNumber || 'N/A'}</h5>
+            <p>Party Name: ${order.partyName || 'N/A'}</p>
+            <p>Date: ${order.dateTime || new Date().toLocaleDateString()}</p>
+        </div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Item Name</th>
+                        <th>Order (Size/Qty)</th>
+                        <th>Bill</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${createOrderItemRows(order.items, true)}
+                </tbody>
+            </table>
+        </div>
+    `;
 
-function updatemodalcontent2(order) {
-    try {
-        // Get modal content container
-        const modalOrderContent = document.getElementById('modalOrderContent');
-        if (!modalOrderContent) {
-            throw new Error('Modal content container not found');
-        }
-
-        // Create the content HTML
-        const contentHTML = `
-            <div class="order-header">
-                <h5>Order No: ${order.orderNumber || 'N/A'}</h5>
-                <p>Party Name: ${order.partyName || 'N/A'}</p>
-                <p>Date: ${order.dateTime || new Date().toLocaleDateString()}</p>
-            </div>
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Item Name</th>
-                            <th>Order (Size/Qty)</th>
-                            <th>Bill</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${createOrderItemRows(order.items, true)}
-                    </tbody>
-                </table>
-            </div>
-        `;
-
-        // Update modal content
-        modalOrderContent.innerHTML = contentHTML;
-
-        // Re-initialize any event listeners or components inside the modal
-        setupQuantityInputListeners();
-
-        console.log('Modal content updated successfully');
-
-    } catch (error) {
-        console.error('Error updating modal content:', error);
-        throw new Error(`Failed to update modal content: ${error.message}`);
-    }
+    // Initialize scanner in camera mode by default
+    scannerMode = 'camera';
+    document.getElementById('camera-container').style.display = 'block';
+    document.getElementById('scan-input-container').style.display = 'none';
+    
+    barcodeModal.show();
+    startScanner();
 }
 
 // Handle modal bill button click
