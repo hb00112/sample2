@@ -168,10 +168,44 @@ const barcodeModal = new bootstrap.Modal(document.getElementById('barcodeScanMod
 let currentOrderId = null;
 
 // Event listener for barcode scan button
-document.addEventListener('click', function(e) {
-    if (e.target.closest('.barcode-scan-btn')) {
-        const orderId = e.target.closest('.barcode-scan-btn').getAttribute('data-order-id');
-        openBarcodeModal(orderId);
+document.addEventListener('click', async function(e) {
+    const scanButton = e.target.closest('.barcode-scan-btn');
+    if (!scanButton) return;
+    
+    try {
+        e.preventDefault(); // Prevent any default behavior
+        
+        // Get order ID more reliably
+        const orderId = scanButton.dataset.orderId;
+        if (!orderId) {
+            console.error('No order ID found on scan button');
+            return;
+        }
+
+        // Check if modal element exists
+        const modalElement = document.getElementById('barcodeScanModal');
+        if (!modalElement) {
+            console.error('Modal element not found');
+            return;
+        }
+
+        // Initialize modal if needed
+        let barcodeModal = bootstrap.Modal.getInstance(modalElement);
+        if (!barcodeModal) {
+            barcodeModal = new bootstrap.Modal(modalElement, {
+                backdrop: 'static',
+                keyboard: false
+            });
+        }
+
+        // Open modal and initialize scanner
+        await openBarcodeModal(orderId);
+        
+        console.log('Modal opened successfully for order:', orderId);
+        
+    } catch (error) {
+        console.error('Error opening scanner modal:', error);
+        alert('Unable to open scanner. Please try again.');
     }
 });
 
@@ -191,53 +225,76 @@ function toggleScannerMode() {
 }
 async function startScanner() {
     try {
-        // Check if BarcodeDetector is available
-        if (!('BarcodeDetector' in window)) {
-            alert('Barcode Scanner not supported by this browser. Switching to manual mode.');
-            toggleScannerMode();
-            return;
-        }
-
-        const video = document.getElementById('scanner-video');
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment' }
-        });
+        // Check for mobile device
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         
-        videoStream = stream;
-        video.srcObject = stream;
-        await video.play();
-
-        const barcodeDetector = new BarcodeDetector({
-            formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e']
-        });
-
-        // Continuous scanning loop
-        async function scanFrame() {
-            if (scannerMode !== 'camera') return;
-
-            try {
-                const barcodes = await barcodeDetector.detect(video);
-                for (const barcode of barcodes) {
-                    await processScannedBarcode(barcode.rawValue);
-                }
-            } catch (error) {
-                console.error('Scanning error:', error);
-            }
-
-            if (scannerMode === 'camera') {
-                requestAnimationFrame(scanFrame);
-            }
+        // Get video element
+        const video = document.getElementById('scanner-video');
+        if (!video) {
+            throw new Error('Video element not found');
         }
 
-        scanFrame();
+        // Configure constraints for better mobile compatibility
+        const constraints = {
+            video: {
+                facingMode: isMobile ? 'environment' : 'user',
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                aspectRatio: { ideal: 1.7777777778 }
+            }
+        };
+
+        // Request camera access
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // Set up video stream
+        video.srcObject = stream;
+        videoStream = stream;
+        
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+            video.onloadedmetadata = () => {
+                video.play().then(resolve);
+            };
+        });
+
+        // Initialize barcode detection if available
+        if ('BarcodeDetector' in window) {
+            const barcodeDetector = new BarcodeDetector({
+                formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e']
+            });
+
+            // Start scanning loop
+            async function scanFrame() {
+                if (scannerMode !== 'camera') return;
+
+                try {
+                    const barcodes = await barcodeDetector.detect(video);
+                    for (const barcode of barcodes) {
+                        await processScannedBarcode(barcode.rawValue);
+                    }
+                    
+                    if (scannerMode === 'camera') {
+                        requestAnimationFrame(scanFrame);
+                    }
+                } catch (error) {
+                    console.error('Scanning error:', error);
+                }
+            }
+
+            scanFrame();
+        } else {
+            // Fallback for browsers without BarcodeDetector
+            console.warn('BarcodeDetector not supported, switching to manual mode');
+            toggleScannerMode();
+        }
 
     } catch (error) {
-        console.error('Scanner initialization error:', error);
-        alert('Unable to access camera. Switching to manual mode.');
-        toggleScannerMode();
+        console.error('Error starting scanner:', error);
+        alert('Unable to access camera. Please check camera permissions.');
+        toggleScannerMode(); // Switch to manual mode
     }
 }
-
 // Function to stop the scanner
 function stopScanner() {
     if (videoStream) {
@@ -646,50 +703,46 @@ async function processScannedBarcode(barcode) {
 }
 // Function to open barcode modal with independent quantities
 async function openBarcodeModal(orderId) {
-    currentOrderId = orderId;
-    
-    // Get order data
-    const orderSnapshot = await firebase.database().ref('billingOrders')
-        .child(orderId)
-        .once('value');
-    const order = orderSnapshot.val();
-    
-    if (!order) {
-        alert('Order not found');
+    if (!orderId) {
+        console.error('No order ID provided');
         return;
     }
-    
-    // Reset the modal content with separate quantity tracking
-    const modalOrderContent = document.getElementById('modalOrderContent');
-    modalOrderContent.innerHTML = `
-        <div class="order-header">
-            <h5>Order No: ${order.orderNumber || 'N/A'}</h5>
-            <p>Party Name: ${order.partyName || 'N/A'}</p>
-            <p>Date: ${order.dateTime || new Date().toLocaleDateString()}</p>
-        </div>
-        <div class="table-responsive">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Item Name</th>
-                        <th>Order (Size/Qty)</th>
-                        <th>Bill</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${createOrderItemRows(order.items, true)}
-                </tbody>
-            </table>
-        </div>
-    `;
 
-    // Initialize scanner in camera mode by default
-    scannerMode = 'camera';
-    document.getElementById('camera-container').style.display = 'block';
-    document.getElementById('scan-input-container').style.display = 'none';
+    currentOrderId = orderId;
     
-    barcodeModal.show();
-    startScanner();
+    try {
+        // Get order data
+        const orderSnapshot = await firebase.database()
+            .ref('billingOrders')
+            .child(orderId)
+            .once('value');
+            
+        const order = orderSnapshot.val();
+        
+        if (!order) {
+            throw new Error('Order not found');
+        }
+        
+        // Update modal content
+        updateModalContent(order);
+        
+        // Reset scanner mode
+        scannerMode = 'camera';
+        
+        // Show/hide appropriate containers
+        const cameraContainer = document.getElementById('camera-container');
+        const scanInputContainer = document.getElementById('scan-input-container');
+        
+        if (cameraContainer) cameraContainer.style.display = 'block';
+        if (scanInputContainer) scanInputContainer.style.display = 'none';
+        
+        // Start scanner
+        await startScanner();
+        
+    } catch (error) {
+        console.error('Error opening modal:', error);
+        alert('Error loading order data. Please try again.');
+    }
 }
 
 // Handle modal bill button click
