@@ -92,7 +92,7 @@ const modalHTML = `
             <div class="modal-body">
                 <div id="scanner-container" class="mb-3">
                     <div id="camera-container" class="position-relative">
-                        <video id="scanner-video" class="w-100" style="max-height: 300px; object-fit: cover;"></video>
+                        <video id="scanner-video" class="w-100" style="max-height: 100px; object-fit: cover;"></video>
                         <div id="scanning-overlay" class="position-absolute top-50 start-50 translate-middle text-center">
                             <div class="spinner-border text-primary" role="status">
                                 <span class="visually-hidden">Scanning...</span>
