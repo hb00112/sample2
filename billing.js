@@ -92,9 +92,16 @@ const modalHTML = `
             <div class="modal-body">
                 <div id="scanner-container" class="mb-3">
                     <div id="camera-container" class="position-relative">
-                        <video id="scanner-video" class="w-100" style="max-height: 300px; object-fit: cover;"></video>
+                        <video id="scanner-video" class="w-100" style="max-height: 120px;min-height:110px; object-fit: cover;"></video>
+                        <!-- Added scanning line -->
                         <div class="scanning-line position-absolute start-0 w-100" 
                              style="top: 50%; height: 2px; background-color: red; z-index: 1000;"></div>
+                        <div id="scanning-overlay" class="position-absolute top-50 start-50 translate-middle text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Scanning...</span>
+                            </div>
+                            <div class="mt-2">Scanning...</div>
+                        </div>
                     </div>
                     <div id="scan-input-container" class="mt-3" style="display: none;">
                         <input type="text" class="form-control" id="barcodeInput" 
