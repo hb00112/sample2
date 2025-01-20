@@ -92,10 +92,7 @@ const modalHTML = `
             <div class="modal-body">
                 <div id="scanner-container" class="mb-3">
                     <div id="camera-container" class="position-relative">
-                        <video id="scanner-video" class="w-100" style="max-height: 120px;min-height:110px; object-fit: cover;"></video>
-                        <!-- Added scanning line -->
-                        <div class="scanning-line position-absolute start-0 w-100" 
-                             style="top: 50%; height: 2px; background-color: red; z-index: 1000;"></div>
+                        <video id="scanner-video" class="w-100" style="max-height: 120px; min-height:110px; object-fit: cover;"></video>
                         <div id="scanning-overlay" class="position-absolute top-50 start-50 translate-middle text-center">
                             <div class="spinner-border text-primary" role="status">
                                 <span class="visually-hidden">Scanning...</span>
@@ -116,6 +113,18 @@ const modalHTML = `
             </div>
         </div>
     </div>
+</div>`;
+
+// Add modal to document body
+document.body.insertAdjacentHTML('beforeend', modalHTML);
+// First, add this HTML for the toast container right after your modal HTML
+const toastContainerHTML = `
+<div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1070;">
+  <div id="scannerToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body"></div>
+    </div>
+  </div>
 </div>`;
 
 document.body.insertAdjacentHTML('beforeend', toastContainerHTML);
