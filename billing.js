@@ -6,6 +6,8 @@ const barcodeMapping = {
     }
     // Add more barcode mappings as needed
 };
+let lastScanTime = 0;
+const COOLDOWN_DURATION = 2000; // 2 seconds in milliseconds
 
 let canScan = true;
 let scannerMode = 'camera'; // 'camera' or 'manual'
@@ -282,28 +284,42 @@ function initializeScanner() {
     });
 }
 function updateScannerBorder(status) {
-    const videoContainer = document.getElementById('camera-container');
-    if (!videoContainer) return;
-    
-    // Add border style based on status
+    const container = document.getElementById('camera-container');
+    if (!container) return;
+
+    // Remove any existing classes
+    container.style.border = '3px solid transparent';
+
+    // Apply new border color
     switch(status) {
         case 'success':
-            videoContainer.style.border = '3px solid #4CAF50'; // Green
+            container.style.borderColor = '#4CAF50';
             break;
         case 'error':
-            videoContainer.style.border = '3px solid #F44336'; // Red
+            container.style.borderColor = '#F44336';
             break;
         case 'warning':
-            videoContainer.style.border = '3px solid #FF9800'; // Orange
+            container.style.borderColor = '#FF9800';
             break;
         default:
-            videoContainer.style.border = 'none';
+            container.style.borderColor = 'transparent';
     }
-    
+
     // Reset border after 2 seconds
     setTimeout(() => {
-        videoContainer.style.border = 'none';
+        if (container) {
+            container.style.borderColor = 'transparent';
+        }
     }, 2000);
+}
+
+function canScanNow() {
+    const currentTime = Date.now();
+    if (currentTime - lastScanTime < COOLDOWN_DURATION) {
+        console.log('Cooling down, please wait...');
+        return false;
+    }
+    return true;
 }
 
 // Function to handle scan cooldown
@@ -317,10 +333,13 @@ function startScanCooldown() {
 // Function to standardize barcode format
 // Enhanced barcode validation and processing
 async function processScannedBarcode(barcode) {
-    // Check if scanning is allowed
-    if (!canScan) {
-        return; // Silently ignore scan during cooldown
+    // Check cooldown period
+    if (!canScanNow()) {
+        return;
     }
+
+    // Update last scan time immediately
+    lastScanTime = Date.now();
     
     try {
         console.log('Processing barcode input:', {
@@ -332,7 +351,6 @@ async function processScannedBarcode(barcode) {
             updateScannerBorder('error');
             showToast('Invalid barcode input', 'error');
             errorBeep.play();
-            startScanCooldown();
             return;
         }
 
@@ -342,7 +360,6 @@ async function processScannedBarcode(barcode) {
             updateScannerBorder('error');
             showToast('Barcode not found in database', 'error');
             errorBeep.play();
-            startScanCooldown();
             return;
         }
 
@@ -352,7 +369,6 @@ async function processScannedBarcode(barcode) {
             updateScannerBorder('warning');
             showToast('No order selected', 'error');
             errorBeep.play();
-            startScanCooldown();
             return;
         }
 
@@ -368,7 +384,6 @@ async function processScannedBarcode(barcode) {
             updateScannerBorder('error');
             showToast('Order not found', 'error');
             errorBeep.play();
-            startScanCooldown();
             return;
         }
 
@@ -382,7 +397,6 @@ async function processScannedBarcode(barcode) {
             updateScannerBorder('warning');
             showToast('Invalid item for this order', 'warning');
             errorBeep.play();
-            startScanCooldown();
             return;
         }
 
@@ -394,7 +408,6 @@ async function processScannedBarcode(barcode) {
             updateScannerBorder('error');
             showToast('System error: Input not found', 'error');
             errorBeep.play();
-            startScanCooldown();
             return;
         }
 
@@ -409,7 +422,6 @@ async function processScannedBarcode(barcode) {
             setTimeout(() => {
                 quantityInput.style.backgroundColor = '';
             }, 500);
-            startScanCooldown();
             return;
         }
 
@@ -419,21 +431,68 @@ async function processScannedBarcode(barcode) {
         showToast(`Product found: ${itemData.itemName}-${itemData.color}-${itemData.size}`, 'success');
         successBeep.play();
         
-        // Visual feedback
+        // Visual feedback for input
         quantityInput.style.backgroundColor = '#e8f5e9';
         setTimeout(() => {
             quantityInput.style.backgroundColor = '';
         }, 500);
-
-        // Start cooldown after successful scan
-        startScanCooldown();
 
     } catch (error) {
         console.error('Error in processScannedBarcode:', error);
         updateScannerBorder('error');
         showToast('System error occurred', 'error');
         errorBeep.play();
-        startScanCooldown();
+    }
+}
+
+// Update the startScanner function to include the cooldown check
+async function startScanner() {
+    try {
+        if (!('BarcodeDetector' in window)) {
+            alert('Barcode Scanner not supported by this browser. Switching to manual mode.');
+            toggleScannerMode();
+            return;
+        }
+
+        const video = document.getElementById('scanner-video');
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
+        
+        videoStream = stream;
+        video.srcObject = stream;
+        await video.play();
+
+        const barcodeDetector = new BarcodeDetector({
+            formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e']
+        });
+
+        // Continuous scanning loop
+        async function scanFrame() {
+            if (scannerMode !== 'camera') return;
+
+            try {
+                if (canScanNow()) {  // Only attempt to detect if not in cooldown
+                    const barcodes = await barcodeDetector.detect(video);
+                    for (const barcode of barcodes) {
+                        await processScannedBarcode(barcode.rawValue);
+                    }
+                }
+            } catch (error) {
+                console.error('Scanning error:', error);
+            }
+
+            if (scannerMode === 'camera') {
+                requestAnimationFrame(scanFrame);
+            }
+        }
+
+        scanFrame();
+
+    } catch (error) {
+        console.error('Scanner initialization error:', error);
+        alert('Unable to access camera. Switching to manual mode.');
+        toggleScannerMode();
     }
 }
 
