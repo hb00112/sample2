@@ -96,10 +96,7 @@ const modalHTML = `
                         <!-- Added scanning line -->
                         <div class="scanning-line position-absolute start-0 w-100" 
                              style="top: 50%; height: 2px; background-color: red; z-index: 1000;"></div>
-                        <div id="scanning-overlay" class="position-absolute top-50 start-50 translate-middle text-center">
-                          
-                                <span class="visually-hidden">Scanning...</span>
-                            </div>
+                          <div id="scanning-overlay" class="position-absolute top-50 start-50 translate-middle text-center">
                             <div class="mt-2">Scanning...</div>
                         </div>
                     </div>
