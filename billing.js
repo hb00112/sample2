@@ -96,6 +96,7 @@ const modalHTML = `
                         <div class="scanning-line position-absolute start-0 w-100" 
                              style="top: 50%; height: 2px; background-color: red; z-index: 1000;"></div>
                     </div>
+                    
                     <div id="scan-input-container" class="mt-3" style="display: none;">
                         <input type="text" class="form-control" id="barcodeInput" 
                                placeholder="Type barcode here..." autofocus>
@@ -107,6 +108,13 @@ const modalHTML = `
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-success modal-bill-btn">Bill Order</button>
             </div>
+        </div>
+    </div>
+</div>
+<div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1070;">
+    <div id="scannerToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body"></div>
         </div>
     </div>
 </div>`;
@@ -240,6 +248,15 @@ function stopScanner() {
         videoStream.getTracks().forEach(track => track.stop());
         videoStream = null;
     }
+    
+    // Clear cooldown when scanner stops
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+    isScanning = false;
+    remainingCooldown = 0;
+    updateCooldownTimer();
 }
 
 // Event listener for triple click to switch modes
@@ -287,18 +304,63 @@ function initializeScanner() {
 // Enhanced barcode validation and processing
 // Add this variable at the top level of your code
 let isScanning = false;
+let countdownInterval;
+let remainingCooldown = 0;
 
-// Updated processScannedBarcode function with delay
+
+
+
+function updateCooldownTimer() {
+    const timerElement = document.getElementById('cooldown-timer');
+    const countdownElement = document.getElementById('countdown-seconds');
+    
+    if (remainingCooldown > 0) {
+        timerElement.style.display = 'block';
+        countdownElement.textContent = remainingCooldown;
+    } else {
+        timerElement.style.display = 'none';
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+        isScanning = false;
+    }
+}
+
+function startCooldown() {
+    isScanning = true;
+    remainingCooldown = 10; // 10 seconds cooldown
+    updateCooldownTimer();
+    
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+    
+    countdownInterval = setInterval(() => {
+        remainingCooldown--;
+        updateCooldownTimer();
+        
+        if (remainingCooldown <= 0) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+            isScanning = false;
+            showToast('Scanner ready', 'success');
+        }
+    }, 1000);
+}
+
+// Updated processScannedBarcode function
 async function processScannedBarcode(barcode) {
     // If currently in scanning cooldown, ignore the scan
     if (isScanning) {
-        console.log('Scanning in cooldown, please wait...');
+        console.log('Scanner in cooldown, please wait...');
+        showToast(`Please wait ${remainingCooldown} seconds`, 'warning');
         return;
     }
 
     try {
-        // Set scanning flag to true
-        isScanning = true;
+        // Start cooldown immediately
+        startCooldown();
         
         console.log('Processing barcode input:', {
             input: barcode,
@@ -391,12 +453,6 @@ async function processScannedBarcode(barcode) {
         console.error('Error in processScannedBarcode:', error);
         showToast('System error occurred', 'error');
         errorBeep.play();
-    } finally {
-        // Set a timeout to reset the scanning flag after 2 seconds
-        setTimeout(() => {
-            isScanning = false;
-            console.log('Scanner ready for next scan');
-        }, 2000); // 2 second delay
     }
 }
 // Improved barcode standardization
@@ -495,12 +551,15 @@ document.getElementById('scanner-container').addEventListener('mouseup', functio
 // Clean up when modal is closed
 document.getElementById('barcodeScanModal').addEventListener('hidden.bs.modal', function () {
     stopScanner();
-    clickCount = 0;
-    if (clickTimer) {
-        clearTimeout(clickTimer);
+    // Clear any existing intervals and reset cooldown
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
     }
+    isScanning = false;
+    remainingCooldown = 0;
+    updateCooldownTimer();
 });
-
 
 function createOrderItemRows(items, isModal = false) {
     if (!items || !Array.isArray(items)) return '';
