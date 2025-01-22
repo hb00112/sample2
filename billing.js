@@ -96,10 +96,8 @@ const modalHTML = `
                         <div class="scanning-line position-absolute start-0 w-100" 
                              style="top: 50%; height: 2px; background-color: red; z-index: 1000;"></div>
                     </div>
-                    
-                    <div id="scan-input-container" class="mt-3" style="display: none;">
-                        <input type="text" class="form-control" id="barcodeInput" 
-                               placeholder="Type barcode here..." autofocus>
+                    <div id="scanner-status" class="text-center mt-2 text-muted">
+                        Ready to scan
                     </div>
                 </div>
                 <div id="modalOrderContent"></div>
@@ -108,13 +106,6 @@ const modalHTML = `
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-success modal-bill-btn">Bill Order</button>
             </div>
-        </div>
-    </div>
-</div>
-<div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1070;">
-    <div id="scannerToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-            <div class="toast-body"></div>
         </div>
     </div>
 </div>`;
@@ -195,10 +186,8 @@ function toggleScannerMode() {
 }
 async function startScanner() {
     try {
-        // Check if BarcodeDetector is available
         if (!('BarcodeDetector' in window)) {
-            alert('Barcode Scanner not supported by this browser. Switching to manual mode.');
-            toggleScannerMode();
+            showToast('Barcode Scanner not supported by this browser', 'error');
             return;
         }
 
@@ -215,20 +204,24 @@ async function startScanner() {
             formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e']
         });
 
-        // Continuous scanning loop
+        // Scanning loop
         async function scanFrame() {
-            if (scannerMode !== 'camera') return;
+            if (!videoStream) return; // Stop if scanner is stopped
 
             try {
-                const barcodes = await barcodeDetector.detect(video);
-                for (const barcode of barcodes) {
-                    await processScannedBarcode(barcode.rawValue);
+                if (!isScanning) {
+                    const barcodes = await barcodeDetector.detect(video);
+                    for (const barcode of barcodes) {
+                        await processScannedBarcode(barcode.rawValue);
+                        break; // Process only one barcode at a time
+                    }
                 }
             } catch (error) {
                 console.error('Scanning error:', error);
             }
 
-            if (scannerMode === 'camera') {
+            // Continue scanning if video stream exists
+            if (videoStream) {
                 requestAnimationFrame(scanFrame);
             }
         }
@@ -237,28 +230,24 @@ async function startScanner() {
 
     } catch (error) {
         console.error('Scanner initialization error:', error);
-        alert('Unable to access camera. Switching to manual mode.');
-        toggleScannerMode();
+        showToast('Unable to access camera', 'error');
     }
 }
-
 // Function to stop the scanner
 function stopScanner() {
     if (videoStream) {
         videoStream.getTracks().forEach(track => track.stop());
         videoStream = null;
     }
-    
-    // Clear cooldown when scanner stops
-    if (countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-    }
-    isScanning = false;
-    remainingCooldown = 0;
-    updateCooldownTimer();
-}
 
+    // Clear cooldown timer if exists
+    if (scanCooldownTimer) {
+        clearTimeout(scanCooldownTimer);
+        scanCooldownTimer = null;
+    }
+
+    isScanning = false;
+}
 // Event listener for triple click to switch modes
 document.getElementById('scanner-container').addEventListener('click', function() {
     clickCount++;
@@ -277,7 +266,7 @@ document.getElementById('scanner-container').addEventListener('click', function(
 });
 
 
-let videoStream = null;
+
 
 // Initialize the scanner
 function initializeScanner() {
@@ -303,11 +292,10 @@ function initializeScanner() {
 // Function to standardize barcode format
 // Enhanced barcode validation and processing
 // Add this variable at the top level of your code
+// Global state for scanner
 let isScanning = false;
-let countdownInterval;
-let remainingCooldown = 0;
-
-
+let scanCooldownTimer = null;
+let videoStream = null;
 
 
 function updateCooldownTimer() {
@@ -351,110 +339,75 @@ function startCooldown() {
 
 // Updated processScannedBarcode function
 async function processScannedBarcode(barcode) {
-    // If currently in scanning cooldown, ignore the scan
     if (isScanning) {
-        console.log('Scanner in cooldown, please wait...');
-        showToast(`Please wait ${remainingCooldown} seconds`, 'warning');
-        return;
+        return; // Exit if already processing a scan
     }
 
     try {
-        // Start cooldown immediately
-        startCooldown();
-        
-        console.log('Processing barcode input:', {
-            input: barcode,
-            type: typeof barcode
-        });
+        isScanning = true;
+        document.getElementById('scanner-status').textContent = 'Processing...';
 
-        if (!barcode) {
-            showToast('Invalid barcode input', 'error');
-            errorBeep.play();
-            return;
+        // Basic barcode validation
+        if (!barcode || typeof barcode !== 'string') {
+            throw new Error('Invalid barcode');
         }
 
-        const matchedBarcode = findMatchingBarcode(barcode);
-        
-        if (!matchedBarcode) {
-            showToast('Barcode not found in database', 'error');
-            errorBeep.play();
-            return;
+        const itemData = window.barcodeMapping[barcode];
+        if (!itemData) {
+            throw new Error('Barcode not found in database');
         }
 
-        const itemData = window.barcodeMapping[matchedBarcode];
-        
         if (!currentOrderId) {
-            showToast('No order selected', 'error');
-            errorBeep.play();
-            return;
+            throw new Error('No order selected');
         }
 
-        // Get order data
-        const orderSnapshot = await firebase.database()
-            .ref('billingOrders')
-            .child(currentOrderId)
-            .once('value');
-            
-        const order = orderSnapshot.val();
-        
-        if (!order || !order.items) {
-            showToast('Order not found', 'error');
-            errorBeep.play();
-            return;
-        }
-
-        // Find matching item
-        const matchingItem = order.items.find(item => {
-            return item.name === itemData.itemName && 
-                   item.colors?.[itemData.color]?.[itemData.size] !== undefined;
-        });
-
-        if (!matchingItem) {
-            showToast('Invalid item for this order', 'warning');
-            errorBeep.play();
-            return;
-        }
-
-        // Find modal quantity input
-        const modalInputId = `modal-${itemData.itemName}-${itemData.color}-${itemData.size}`;
-        const quantityInput = document.getElementById(modalInputId);
+        // Find and update quantity input
+        const quantityInput = document.querySelector(
+            `.bill-quantity[data-item="${itemData.itemName}"][data-color="${itemData.color}"][data-size="${itemData.size}"]`
+        );
 
         if (!quantityInput) {
-            showToast('System error: Input not found', 'error');
-            errorBeep.play();
-            return;
+            throw new Error('Item input not found');
         }
 
-        const maxQuantity = parseInt(matchingItem.colors[itemData.color][itemData.size]);
-        const currentQuantity = parseInt(quantityInput.value) || 0;
+        const currentQty = parseInt(quantityInput.value) || 0;
+        const maxQty = parseInt(quantityInput.getAttribute('max')) || 0;
 
-        if (currentQuantity >= maxQuantity) {
-            showToast('Maximum quantity reached', 'warning');
-            errorBeep.play();
-            quantityInput.style.backgroundColor = '#ffebee';
-            setTimeout(() => {
-                quantityInput.style.backgroundColor = '';
-            }, 500);
-            return;
+        if (currentQty >= maxQty) {
+            throw new Error('Maximum quantity reached');
         }
 
-        // Increment modal quantity
-        quantityInput.value = currentQuantity + 1;
-        showToast(`Product found: ${itemData.itemName}-${itemData.color}-${itemData.size}`, 'success');
-        successBeep.play();
+        // Update quantity
+        quantityInput.value = currentQty + 1;
         
         // Visual feedback
         quantityInput.style.backgroundColor = '#e8f5e9';
-        setTimeout(() => {
-            quantityInput.style.backgroundColor = '';
-        }, 500);
+        setTimeout(() => quantityInput.style.backgroundColor = '', 500);
+        
+        successBeep.play();
+        showToast('Item scanned successfully', 'success');
 
     } catch (error) {
-        console.error('Error in processScannedBarcode:', error);
-        showToast('System error occurred', 'error');
+        console.error('Scan processing error:', error);
         errorBeep.play();
+        showToast(error.message, 'error');
+    } finally {
+        // Start cooldown timer
+        document.getElementById('scanner-status').textContent = 'Cooling down...';
+        
+        // Clear any existing cooldown
+        if (scanCooldownTimer) {
+            clearTimeout(scanCooldownTimer);
+        }
+
+        // Set new cooldown
+        scanCooldownTimer = setTimeout(() => {
+            isScanning = false;
+            document.getElementById('scanner-status').textContent = 'Ready to scan';
+        }, 10000); // 10 second cooldown
     }
 }
+
 // Improved barcode standardization
 function standardizeBarcode(barcode) {
     if (!barcode) return '';
@@ -551,14 +504,6 @@ document.getElementById('scanner-container').addEventListener('mouseup', functio
 // Clean up when modal is closed
 document.getElementById('barcodeScanModal').addEventListener('hidden.bs.modal', function () {
     stopScanner();
-    // Clear any existing intervals and reset cooldown
-    if (countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-    }
-    isScanning = false;
-    remainingCooldown = 0;
-    updateCooldownTimer();
 });
 
 function createOrderItemRows(items, isModal = false) {
