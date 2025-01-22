@@ -192,6 +192,10 @@ async function startScanner() {
         }
 
         const video = document.getElementById('scanner-video');
+        if (!video) {
+            throw new Error('Scanner video element not found');
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'environment' }
         });
@@ -206,21 +210,20 @@ async function startScanner() {
 
         // Scanning loop
         async function scanFrame() {
-            if (!videoStream) return; // Stop if scanner is stopped
+            if (!videoStream) return;
 
             try {
                 if (!isScanning) {
                     const barcodes = await barcodeDetector.detect(video);
                     for (const barcode of barcodes) {
                         await processScannedBarcode(barcode.rawValue);
-                        break; // Process only one barcode at a time
+                        break;
                     }
                 }
             } catch (error) {
                 console.error('Scanning error:', error);
             }
 
-            // Continue scanning if video stream exists
             if (videoStream) {
                 requestAnimationFrame(scanFrame);
             }
@@ -662,47 +665,96 @@ async function openBarcodeModal(orderId) {
     currentOrderId = orderId;
     
     // Get order data
-    const orderSnapshot = await firebase.database().ref('billingOrders')
-        .child(orderId)
-        .once('value');
-    const order = orderSnapshot.val();
-    
-    if (!order) {
-        alert('Order not found');
-        return;
-    }
-    
-    // Reset the modal content with separate quantity tracking
-    const modalOrderContent = document.getElementById('modalOrderContent');
-    modalOrderContent.innerHTML = `
-        <div class="order-header">
-            <h5>Order No: ${order.orderNumber || 'N/A'}</h5>
-            <p>Party Name: ${order.partyName || 'N/A'}</p>
-            <p>Date: ${order.dateTime || new Date().toLocaleDateString()}</p>
-        </div>
-        <div class="table-responsive">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Item Name</th>
-                        <th>Order (Size/Qty)</th>
-                        <th>Bill</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${createOrderItemRows(order.items, true)}
-                </tbody>
-            </table>
-        </div>
-    `;
+    try {
+        const orderSnapshot = await firebase.database().ref('billingOrders')
+            .child(orderId)
+            .once('value');
+        const order = orderSnapshot.val();
+        
+        if (!order) {
+            showToast('Order not found', 'error');
+            return;
+        }
 
-    // Initialize scanner in camera mode by default
-    scannerMode = 'camera';
-    document.getElementById('camera-container').style.display = 'block';
-    document.getElementById('scan-input-container').style.display = 'none';
-    
-    barcodeModal.show();
-    startScanner();
+        // Ensure all required containers exist
+        const modalContent = document.getElementById('modalOrderContent');
+        const cameraContainer = document.getElementById('camera-container');
+        const scanInputContainer = document.getElementById('scan-input-container');
+
+        if (!modalContent || !cameraContainer) {
+            console.error('Required modal elements not found');
+            showToast('System error: Modal elements not found', 'error');
+            return;
+        }
+
+        // Reset the modal content with separate quantity tracking
+        modalContent.innerHTML = `
+            <div class="order-header">
+                <h5>Order No: ${order.orderNumber || 'N/A'}</h5>
+                <p>Party Name: ${order.partyName || 'N/A'}</p>
+                <p>Date: ${order.dateTime || new Date().toLocaleDateString()}</p>
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Item Name</th>
+                            <th>Order (Size/Qty)</th>
+                            <th>Bill</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${createOrderItemRows(order.items, true)}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        // Ensure scanner container exists
+        const scannerContainer = document.getElementById('scanner-container');
+        if (!scannerContainer) {
+            // Create scanner container if it doesn't exist
+            modalContent.insertAdjacentHTML('beforebegin', `
+                <div id="scanner-container" class="mb-3">
+                    <div id="camera-container" class="position-relative">
+                        <video id="scanner-video" class="w-100" style="max-height: 120px; min-height:110px; object-fit: cover;"></video>
+                        <div class="scanning-line position-absolute start-0 w-100" 
+                             style="top: 50%; height: 2px; background-color: red; z-index: 1000;"></div>
+                    </div>
+                    <div id="scanner-status" class="text-center mt-2 text-muted">
+                        Ready to scan
+                    </div>
+                    <div id="scan-input-container" style="display: none;">
+                        <input type="text" id="barcodeInput" class="form-control" placeholder="Enter barcode manually">
+                    </div>
+                </div>
+            `);
+        }
+
+        // Initialize scanner mode
+        scannerMode = 'camera';
+        const updatedCameraContainer = document.getElementById('camera-container');
+        const updatedScanInputContainer = document.getElementById('scan-input-container');
+        
+        if (updatedCameraContainer) {
+            updatedCameraContainer.style.display = 'block';
+        }
+        if (updatedScanInputContainer) {
+            updatedScanInputContainer.style.display = 'none';
+        }
+
+        // Show the modal
+        barcodeModal.show();
+        
+        // Start the scanner after modal is shown
+        setTimeout(() => {
+            startScanner();
+        }, 500); // Small delay to ensure modal is fully rendered
+
+    } catch (error) {
+        console.error('Error opening barcode modal:', error);
+        showToast('Error opening scanner modal', 'error');
+    }
 }
 
 // Handle modal bill button click
