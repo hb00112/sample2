@@ -7,6 +7,10 @@ const barcodeMapping = {
     // Add more barcode mappings as needed
 };
 
+let isScanning = false;
+let scanTimeout = null;
+const SCAN_DELAY = 5000; // 5 seconds delay between scans
+let lastProcessedBarcode = null; // Track last processed barcode
 
 let scannerMode = 'camera'; // 'camera' or 'manual'
 let clickCount = 0;
@@ -191,6 +195,7 @@ async function startScanner() {
         clearTimeout(scanTimeout);
     }
     isScanning = false;
+    lastProcessedBarcode = null;
 
     try {
         // Check if BarcodeDetector is available
@@ -213,19 +218,40 @@ async function startScanner() {
             formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e']
         });
 
-        // Continuous scanning loop
+        // Modified scanning loop with strict delay enforcement
         async function scanFrame() {
             if (scannerMode !== 'camera') return;
 
             try {
-                const barcodes = await barcodeDetector.detect(video);
-                for (const barcode of barcodes) {
-                    await processScannedBarcode(barcode.rawValue);
+                // Only attempt to detect if not currently scanning
+                if (!isScanning) {
+                    const barcodes = await barcodeDetector.detect(video);
+                    
+                    if (barcodes.length > 0) {
+                        const barcode = barcodes[0].rawValue;
+                        
+                        // Only process if it's a new barcode or sufficient time has passed
+                        if (barcode !== lastProcessedBarcode) {
+                            isScanning = true;
+                            lastProcessedBarcode = barcode;
+                            
+                            // Process the barcode
+                            await processScannedBarcode(barcode);
+                            
+                            // Set delay before allowing next scan
+                            scanTimeout = setTimeout(() => {
+                                isScanning = false;
+                                lastProcessedBarcode = null;
+                                showToast('Scanner ready', 'success');
+                            }, SCAN_DELAY);
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('Scanning error:', error);
             }
 
+            // Continue the scanning loop
             if (scannerMode === 'camera') {
                 requestAnimationFrame(scanFrame);
             }
@@ -240,6 +266,7 @@ async function startScanner() {
     }
 }
 
+
 // Update stopScanner to clear timeouts
 function stopScanner() {
     if (videoStream) {
@@ -252,6 +279,7 @@ function stopScanner() {
         clearTimeout(scanTimeout);
     }
     isScanning = false;
+    lastProcessedBarcode = null;
 }
 
 // Event listener for triple click to switch modes
@@ -294,25 +322,15 @@ function initializeScanner() {
     });
 }
 
-let isScanning = false;
-let scanTimeout = null;
-const SCAN_DELAY = 5000; // 5 seconds delay between scans
+
 
 // Enhanced processScannedBarcode function with delay
 async function processScannedBarcode(barcode) {
-    // If already scanning, ignore new scan attempts
-    if (isScanning) {
-        console.log('Scanning blocked - please wait for cooldown');
-        return;
-    }
-
     try {
-        // Set scanning flag
-        isScanning = true;
-        
         console.log('Processing barcode input:', {
             input: barcode,
-            type: typeof barcode
+            type: typeof barcode,
+            timestamp: new Date().toISOString()
         });
 
         if (!barcode) {
@@ -401,14 +419,9 @@ async function processScannedBarcode(barcode) {
         console.error('Error in processScannedBarcode:', error);
         showToast('System error occurred', 'error');
         errorBeep.play();
-    } finally {
-        // Set timeout to reset scanning flag after delay
-        scanTimeout = setTimeout(() => {
-            isScanning = false;
-            showToast('Scanner ready', 'success');
-        }, SCAN_DELAY);
     }
 }
+
 
 
 // Improved barcode standardization
