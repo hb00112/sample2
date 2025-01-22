@@ -9,7 +9,7 @@ const barcodeMapping = {
 
 let isScanning = false;
 let scanTimeout = null;
-const SCAN_DELAY = 5000; // 5 seconds delay between scans
+const SCAN_DELAY = 2000; // 5 seconds delay between scans
 let lastProcessedBarcode = null; // Track last processed barcode
 
 let scannerMode = 'camera'; // 'camera' or 'manual'
