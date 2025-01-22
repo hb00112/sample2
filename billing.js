@@ -661,11 +661,54 @@ async function processScannedBarcode(barcode) {
     }
 }
 // Function to open barcode modal with independent quantities
+// First, let's create a function to ensure the modal and scanner elements exist
+function createScannerElements() {
+    // Check if modal exists, if not create it
+    if (!document.getElementById('barcodeScanModal')) {
+        document.body.insertAdjacentHTML('beforeend', `
+            <div class="modal fade" id="barcodeScanModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Scan Barcode</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="scanner-container" class="mb-3">
+                                <div id="camera-container" class="position-relative">
+                                    <video id="scanner-video" class="w-100" style="max-height: 120px; min-height:110px; object-fit: cover;"></video>
+                                    <div class="scanning-line position-absolute start-0 w-100" 
+                                         style="top: 50%; height: 2px; background-color: red; z-index: 1000;"></div>
+                                </div>
+                                <div id="scanner-status" class="text-center mt-2 text-muted">
+                                    Ready to scan
+                                </div>
+                                <div id="scan-input-container" style="display: none;">
+                                    <input type="text" id="barcodeInput" class="form-control" placeholder="Enter barcode manually">
+                                </div>
+                            </div>
+                            <div id="modalOrderContent"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-success modal-bill-btn">Bill Order</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+    }
+}
+
+// Updated openBarcodeModal function
 async function openBarcodeModal(orderId) {
-    currentOrderId = orderId;
-    
-    // Get order data
     try {
+        // Ensure all scanner elements exist
+        createScannerElements();
+        
+        currentOrderId = orderId;
+        
+        // Get order data
         const orderSnapshot = await firebase.database().ref('billingOrders')
             .child(orderId)
             .once('value');
@@ -676,19 +719,19 @@ async function openBarcodeModal(orderId) {
             return;
         }
 
-        // Ensure all required containers exist
-        const modalContent = document.getElementById('modalOrderContent');
+        // Get required elements
+        const modalOrderContent = document.getElementById('modalOrderContent');
         const cameraContainer = document.getElementById('camera-container');
         const scanInputContainer = document.getElementById('scan-input-container');
 
-        if (!modalContent || !cameraContainer) {
+        if (!modalOrderContent || !cameraContainer || !scanInputContainer) {
             console.error('Required modal elements not found');
             showToast('System error: Modal elements not found', 'error');
             return;
         }
 
-        // Reset the modal content with separate quantity tracking
-        modalContent.innerHTML = `
+        // Set the modal content
+        modalOrderContent.innerHTML = `
             <div class="order-header">
                 <h5>Order No: ${order.orderNumber || 'N/A'}</h5>
                 <p>Party Name: ${order.partyName || 'N/A'}</p>
@@ -710,52 +753,53 @@ async function openBarcodeModal(orderId) {
             </div>
         `;
 
-        // Ensure scanner container exists
-        const scannerContainer = document.getElementById('scanner-container');
-        if (!scannerContainer) {
-            // Create scanner container if it doesn't exist
-            modalContent.insertAdjacentHTML('beforebegin', `
-                <div id="scanner-container" class="mb-3">
-                    <div id="camera-container" class="position-relative">
-                        <video id="scanner-video" class="w-100" style="max-height: 120px; min-height:110px; object-fit: cover;"></video>
-                        <div class="scanning-line position-absolute start-0 w-100" 
-                             style="top: 50%; height: 2px; background-color: red; z-index: 1000;"></div>
-                    </div>
-                    <div id="scanner-status" class="text-center mt-2 text-muted">
-                        Ready to scan
-                    </div>
-                    <div id="scan-input-container" style="display: none;">
-                        <input type="text" id="barcodeInput" class="form-control" placeholder="Enter barcode manually">
-                    </div>
-                </div>
-            `);
-        }
-
         // Initialize scanner mode
         scannerMode = 'camera';
-        const updatedCameraContainer = document.getElementById('camera-container');
-        const updatedScanInputContainer = document.getElementById('scan-input-container');
         
-        if (updatedCameraContainer) {
-            updatedCameraContainer.style.display = 'block';
+        // Show/hide appropriate containers
+        if (cameraContainer) cameraContainer.style.display = 'block';
+        if (scanInputContainer) scanInputContainer.style.display = 'none';
+
+        // Initialize the Bootstrap modal
+        const modalElement = document.getElementById('barcodeScanModal');
+        if (!modalElement) {
+            throw new Error('Modal element not found');
         }
-        if (updatedScanInputContainer) {
-            updatedScanInputContainer.style.display = 'none';
+        
+        // Create new modal instance if needed
+        if (!barcodeModal) {
+            barcodeModal = new bootstrap.Modal(modalElement);
         }
 
         // Show the modal
         barcodeModal.show();
-        
-        // Start the scanner after modal is shown
+
+        // Start scanner after a short delay to ensure modal is rendered
         setTimeout(() => {
             startScanner();
-        }, 500); // Small delay to ensure modal is fully rendered
+        }, 500);
 
     } catch (error) {
-        console.error('Error opening barcode modal:', error);
+        console.error('Error in openBarcodeModal:', error);
         showToast('Error opening scanner modal', 'error');
     }
 }
+
+// Updated scanner initialization
+document.addEventListener('DOMContentLoaded', () => {
+    createScannerElements();
+    initializeBarcodeMapping();
+    testBarcodeMapping();
+    setupBarcodeInput();
+    
+    // Initialize modal events
+    const modalElement = document.getElementById('barcodeScanModal');
+    if (modalElement) {
+        modalElement.addEventListener('hidden.bs.modal', function () {
+            stopScanner();
+        });
+    }
+});
 
 // Handle modal bill button click
 document.querySelector('.modal-bill-btn').addEventListener('click', function() {
